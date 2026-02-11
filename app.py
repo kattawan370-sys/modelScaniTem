@@ -12,7 +12,7 @@ st.markdown("""
 <style>
     .stCheckbox {
         background-color: #f8f9fa;
-        padding: 10px;
+        padding: 7px;
         border-radius: 8px;
         border: 1px solid #dee2e6;
         margin-bottom: 8px;
@@ -24,6 +24,28 @@ st.markdown("""
 # --- 1. เตรียมตัวแปรความจำ (Session State) ---
 if 'detected_list' not in st.session_state:
     st.session_state.detected_list = []
+
+# ==========================================
+# 🆕 ฟังก์ชันจัดการเมื่อมีการเปลี่ยนรูปภาพ
+# ==========================================
+def keep_only_checked_items():
+    """
+    ฟังก์ชันนี้จะถูกเรียกเมื่อผู้ใช้ถ่ายรูปใหม่ หรืออัปโหลดไฟล์ใหม่
+    หน้าที่: ลบรายการทั้งหมดทิ้ง ยกเว้นรายการที่ 'ติ๊กถูก' เอาไว้
+    """
+    # 1. กรองเอาเฉพาะรายการที่ checked = True
+    kept_items = [item for item in st.session_state.detected_list if item.get('checked', False)]
+    
+    # 2. อัปเดตรายการหลักให้เหลือแค่ตัวที่เลือก
+    st.session_state.detected_list = kept_items
+    
+    # 3. ล้างค่า Widget Key เดิม (chk_0, chk_1...) เพื่อป้องกัน Streamlit งงลำดับ
+    # ต้องลบ Key ที่ขึ้นต้นด้วย "chk_" ออกจาก Session State
+    keys_to_del = [k for k in st.session_state.keys() if str(k).startswith("chk_")]
+    for k in keys_to_del:
+        del st.session_state[k]
+
+# ==========================================
 
 @st.cache_resource
 def load_scanner():
@@ -48,17 +70,19 @@ st.title("📋 ระบบเช็คลิสต์เครื่องม�
 col_input, col_result = st.columns([1, 1.5])
 
 # ==========================================
-# 👈 ฝั่งซ้าย: Input & Visualization (แก้ไขใหม่)
+# 👈 ฝั่งซ้าย: Input & Visualization
 # ==========================================
 with col_input:
     st.header("📸 สแกนเครื่องมือ")
     input_method = st.radio("เลือกวิธี:", ["Camera", "Upload Image"])
     
     img_file = None
+    
+    # 👉 เพิ่ม on_change=keep_only_checked_items ในทั้งสองช่องทาง
     if input_method == "Camera":
-        img_file = st.camera_input("ถ่ายภาพ")
+        img_file = st.camera_input("ถ่ายภาพ", key="cam_input", on_change=keep_only_checked_items)
     else:
-        img_file = st.file_uploader("อัปโหลดภาพ", type=['jpg','png'])
+        img_file = st.file_uploader("อัปโหลดภาพ", type=['jpg','png'], key="file_input", on_change=keep_only_checked_items)
 
     if img_file:
         # 1. เตรียมภาพต้นฉบับ
@@ -69,39 +93,34 @@ with col_input:
         viz_img = None
         kp_count = 0
         try:
-            # ต้องมีฟังก์ชัน visualize_keypoints ใน scanner_module.py ล่าสุด
             viz_img, kp_count = scanner.visualize_keypoints(opencv_img.copy())
         except AttributeError:
-            # กันเหนียวเผื่อลืมอัปเดต scanner_module
             viz_img = opencv_img
-            kp_count = "N/A (ฟังก์ชันไม่พร้อม)"
+            kp_count = "N/A"
 
-        # 3. [ส่วนที่แก้ไข] แสดงผล 2 รูปคู่กัน
-        st.write("---") # เส้นคั่นเล็กน้อย
-        img_col1, img_col2 = st.columns(2) # แบ่งคอลัมน์ย่อยสำหรับรูปภาพ
+        # 3. แสดงผล 2 รูปคู่กัน
+        st.write("---") 
+        img_col1, img_col2 = st.columns(2) 
 
         with img_col1:
-            # รูปซ้าย: ต้นฉบับ
             st.image(opencv_img, channels="BGR", caption="📸 ภาพต้นฉบับ", use_container_width=True)
 
         with img_col2:
-            # รูปขวา: จุดสแกนสีเขียว
             caption_text = f"🟢 จุดสแกน (พบ {kp_count} จุด)"
             st.image(viz_img, channels="BGR", caption=caption_text, use_container_width=True)
         
-        # แจ้งเตือนถ้าจุดน้อย
         if isinstance(kp_count, int) and kp_count < 500:
-             st.warning(f"⚠️ พบจุดเด่นน้อย ({kp_count}) การสแกนอาจไม่แม่นยำ ลองเพิ่มแสงสว่าง")
-        # ------------------------------------------------
+             st.warning(f"⚠️ พบจุดเด่นน้อย ({kp_count}) การสแกนอาจไม่แม่นยำ")
         
         st.divider()
 
         if st.button("🔍 สแกนหาอุปกรณ์ทั้งหมด", type="primary", use_container_width=True):
-            # ปรับ Threshold ตามความเหมาะสม (8-12 สำหรับภาพกว้าง)
-            results = scanner.scan_multiple_items(opencv_img, threshold=10)
+            # ปรับ Threshold (8-10 สำหรับ SIFT+RANSAC)
+            results = scanner.scan_multiple_items(opencv_img, threshold=8)
             
             if results:
                 count_new = 0
+                # เช็คว่ามีไฟล์นี้อยู่แล้วหรือยัง (รวมถึงตัวที่ติ๊กถูกไว้ก่อนหน้าด้วย)
                 existing_files = [x['filename'] for x in st.session_state.detected_list]
                 
                 for res in results:
@@ -117,19 +136,19 @@ with col_input:
                             "category": category,
                             "description": description,
                             "score": res['score'],
-                            "checked": False 
+                            "checked": False # ของใหม่ยังไม่ติ๊ก
                         })
                         count_new += 1
                 
                 if count_new > 0:
                     st.toast(f"✅ เจอเพิ่ม {count_new} รายการ!", icon="🎉")
                 else:
-                    st.toast("รายการนี้มีอยู่แล้ว", icon="ℹ️")
+                    st.toast("ไม่พบรายการใหม่ (หรือมีอยู่แล้ว)", icon="ℹ️")
             else:
                 st.error("ไม่พบอุปกรณ์ที่รู้จัก")
 
 # ==========================================
-# 👉 ฝั่งขวา: Checklist (เหมือนเดิม)
+# 👉 ฝั่งขวา: Checklist
 # ==========================================
 with col_result:
     st.header(f"📝 รายการตรวจสอบ ({len(st.session_state.detected_list)})")
@@ -137,7 +156,6 @@ with col_result:
     # --- ปุ่มจัดการ ---
     c_btn1, c_btn2, c_btn3 = st.columns(3)
     
-    # ฟังก์ชันช่วยอัปเดต Checkbox (Force Update Widget)
     def update_all_checked(value):
         for i in range(len(st.session_state.detected_list)):
             st.session_state.detected_list[i]['checked'] = value
@@ -163,18 +181,21 @@ with col_result:
 
     # --- ส่วนแสดงรายการ ---
     if not st.session_state.detected_list:
-        st.warning("ยังไม่มีรายการ... กรุณาถ่ายภาพหรืออัปโหลดทางฝั่งซ้าย")
+        st.info("ยังไม่มีรายการ... กรุณาถ่ายภาพหรืออัปโหลดทางฝั่งซ้าย")
     else:
+        # วนลูปแสดงรายการ
+        # หมายเหตุ: index (i) อาจจะเปลี่ยนไปเมื่อมีการลบรายการ 
+        # แต่ Streamlit จะเรนเดอร์ใหม่ตามลำดับ list ปัจจุบัน
         for i, item in enumerate(st.session_state.detected_list):
             
             c1, c2, c3, c4 = st.columns([0.15, 0.55, 0.2, 0.1])
             
             with c1:
-                # Checkbox ที่ผูกค่ากับ Session State อย่างถูกต้อง
+                # Checkbox
                 is_checked = st.checkbox(
                     "", 
-                    value=item['checked'], 
-                    key=f"chk_{i}"
+                    value=item.get('checked', False), 
+                    key=f"chk_{i}" 
                 )
                 st.session_state.detected_list[i]['checked'] = is_checked
             
@@ -191,7 +212,6 @@ with col_result:
                 
             with c4:
                 if st.button("❌", key=f"del_{i}"):
-                    # ลบ Key ของ Widget ทิ้งด้วยเพื่อไม่ให้ Error
                     if f"chk_{i}" in st.session_state:
                         del st.session_state[f"chk_{i}"]
                     
