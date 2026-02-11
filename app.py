@@ -116,7 +116,7 @@ with col_input:
 
         if st.button("🔍 สแกนหาอุปกรณ์ทั้งหมด", type="primary", use_container_width=True):
             # ปรับ Threshold (8-10 สำหรับ SIFT+RANSAC)
-            results = scanner.scan_multiple_items(opencv_img, threshold=8)
+            results = scanner.scan_with_tiling(opencv_img, threshold=8)
             
             if results:
                 count_new = 0

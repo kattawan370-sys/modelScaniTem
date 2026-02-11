@@ -36,9 +36,8 @@ class ShapeScanner:
                 img_gray = cv2.cvtColor(img_color, cv2.COLOR_BGR2GRAY)
 
                 # 2. [ไม้ตาย] สร้าง Mask เพื่อลบพื้นหลังสีขาวออก
-                # ถ้าพิกเซลไหนสว่างมากๆ (>230) ให้ถือว่าเป็นพื้นหลัง (สีดำใน mask)
-                # พิกเซลที่เป็นตัวเครื่องมือจะเป็นสีขาวใน mask
-                _, mask = cv2.threshold(img_gray, 230, 255, cv2.THRESH_BINARY_INV)
+                # ถ้าพิกเซลไหนสว่างมากๆ (>235) ให้ถือว่าเป็นพื้นหลัง (สีดำใน mask)
+                _, mask = cv2.threshold(img_gray, 235, 255, cv2.THRESH_BINARY_INV)
                 
                 # 3. ปรับแสงเฉพาะส่วนเครื่องมือ (CLAHE)
                 clahe = cv2.createCLAHE(clipLimit=4.0, tileGridSize=(8,8))
@@ -62,74 +61,102 @@ class ShapeScanner:
 
         print(f"--- สรุป: จำได้ {len(self.templates)} รูปแบบ ---")
 
-    def scan_multiple_items(self, scene_image, threshold=8):
-        """ 
-        ค้นหาวัตถุด้วย SIFT + FLANN + RANSAC
-        """
-        found_items = []
-        gray_scene = cv2.cvtColor(scene_image, cv2.COLOR_BGR2GRAY)
-
-        # ปรับแสงภาพบอร์ด (สำคัญมาก เพราะบอร์ดมันมืดกว่ารูปต้นฉบับ)
-        clahe = cv2.createCLAHE(clipLimit=4.0, tileGridSize=(8,8))
-        gray_scene = clahe.apply(gray_scene)
-
-        # หาจุดในภาพบอร์ด (Scene)
-        kp_scene, des_scene = self.sift.detectAndCompute(gray_scene, None)
+    def _scan_single_image(self, img_gray, threshold):
+        """ ฟังก์ชันย่อยสำหรับสแกนภาพ 1 ภาพ (ใช้ภายใน Class) """
+        found_in_chunk = []
         
+        # ปรับแสง
+        clahe = cv2.createCLAHE(clipLimit=4.0, tileGridSize=(8,8))
+        img_gray = clahe.apply(img_gray)
+
+        kp_scene, des_scene = self.sift.detectAndCompute(img_gray, None)
         if des_scene is None: return []
 
-        # ใช้ FLANN Matcher (ตั้งค่าสำหรับ SIFT)
-        index_params = dict(algorithm=1, trees=5) # KD-Tree
+        index_params = dict(algorithm=1, trees=5) 
         search_params = dict(checks=50)
         flann = cv2.FlannBasedMatcher(index_params, search_params)
 
         for item in self.templates:
             try:
                 if item['des'] is None or len(item['des']) < 2: continue
-
-                # จับคู่จุด (KNN)
-                matches = flann.knnMatch(item['des'], des_scene, k=2)
                 
+                matches = flann.knnMatch(item['des'], des_scene, k=2)
                 good_matches = []
                 for m, n in matches:
-                    # Ratio Test 0.7 (มาตรฐาน SIFT)
                     if m.distance < 0.7 * n.distance:
                         good_matches.append(m)
                 
-                # ต้องเจอจุดที่เหมือนกันอย่างน้อย 10 จุด
-                if len(good_matches) < 10: continue
+                # ลดเกณฑ์ขั้นต่ำลงนิดหน่อยเพราะแบ่งภาพย่อยแล้ว
+                if len(good_matches) < 8: continue 
 
-                # --- RANSAC: ตรวจสอบรูปทรง ---
                 src_pts = np.float32([ item['kp'][m.queryIdx].pt for m in good_matches ]).reshape(-1,1,2)
                 dst_pts = np.float32([ kp_scene[m.trainIdx].pt for m in good_matches ]).reshape(-1,1,2)
 
-                # หาความสัมพันธ์ของตำแหน่ง (Homography)
                 M, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
                 
                 if M is not None:
                     matchesMask = mask.ravel().tolist()
-                    real_score = sum(matchesMask) # คะแนนจริง (Inliers)
+                    real_score = sum(matchesMask)
                     
-                    # ตรวจสอบความสมเหตุสมผลของรูปทรง (ป้องกันการจับมั่วแบบเจอจุดเล็กๆแล้วขยายเต็มจอ)
+                    # Area check
                     h, w = item['shape']
                     pts = np.float32([ [0,0],[0,h-1],[w-1,h-1],[w-1,0] ]).reshape(-1,1,2)
                     dst = cv2.perspectiveTransform(pts, M)
-                    
-                    # คำนวณพื้นที่ของกรอบสี่เหลี่ยมที่เจอ
                     area = cv2.contourArea(np.int32(dst))
                     
-                    # กรอง: ถ้าพื้นที่เล็กเกินไป (Noise) หรือใหญ่เกินไป (Error) ให้ตัดทิ้ง
-                    # (ปรับค่า 500 ตามขนาดภาพจริงของคุณ)
-                    if real_score >= threshold and area > 500:
-                        found_items.append({
+                    # ลด Area ขั้นต่ำเพราะภาพย่อยเล็กลง (เหลือ 100)
+                    if real_score >= threshold and area > 100: 
+                        found_in_chunk.append({
                             "filename": item['name'],
-                            "score": real_score
+                            "score": int(real_score)
                         })
-            except Exception:
-                continue
+            except: continue
+            
+        return found_in_chunk
+
+    def scan_with_tiling(self, scene_image, threshold=8):
+        """ 
+        [ฟังก์ชันพระเอก] แบ่งภาพเป็น 4 ส่วนแล้วสแกน (Image Tiling)
+        """
+        final_results = {} # ใช้ Dict เพื่อกันซ้ำ (Key=Filename)
         
-        found_items.sort(key=lambda x: x['score'], reverse=True)
-        return found_items
+        gray_scene = cv2.cvtColor(scene_image, cv2.COLOR_BGR2GRAY)
+        h, w = gray_scene.shape
+        
+        # กำหนดจุดกึ่งกลาง และระยะ Overlap (10%)
+        mid_h, mid_w = h // 2, w // 2
+        overlap_h = int(h * 0.1)
+        overlap_w = int(w * 0.1)
+
+        # นิยาม 4 พื้นที่ (ROI: Region of Interest)
+        rois = [
+            gray_scene[0:mid_h+overlap_h, 0:mid_w+overlap_w],       # ซ้ายบน
+            gray_scene[0:mid_h+overlap_h, mid_w-overlap_w:w],       # ขวาบน
+            gray_scene[mid_h-overlap_h:h, 0:mid_w+overlap_w],       # ซ้ายล่าง
+            gray_scene[mid_h-overlap_h:h, mid_w-overlap_w:w]        # ขวาล่าง
+        ]
+        
+        print(f"--- เริ่มสแกนแบบ Tiling (4 ส่วน) ---")
+
+        for i, roi in enumerate(rois):
+            # สแกนทีละส่วน
+            results = self._scan_single_image(roi, threshold)
+            print(f"   ส่วนที่ {i+1}: เจอ {len(results)} รายการ")
+            
+            # รวมผลลัพธ์ (ถ้าเจอซ้ำ ให้เอาคะแนนที่มากกว่า)
+            for res in results:
+                name = res['filename']
+                score = res['score']
+                
+                if name in final_results:
+                    # ถ้าเคยเจอแล้ว ให้บันทึกคะแนนสูงสุด
+                    if score > final_results[name]['score']:
+                        final_results[name]['score'] = score
+                else:
+                    final_results[name] = res
+
+        # แปลงกลับเป็น List และเรียงคะแนน
+        return sorted(list(final_results.values()), key=lambda x: x['score'], reverse=True)
 
     def visualize_keypoints(self, image):
         output_img = image.copy()
@@ -140,10 +167,17 @@ class ShapeScanner:
         
         kp, _ = self.sift.detectAndCompute(gray, None)
         
-        # วาดจุดเป็นเป้าเล็งเล็กๆ สีแดง
+        # วาดกากบาทเล็กๆ สีแดง
         for k in kp:
             x, y = int(k.pt[0]), int(k.pt[1])
-            # วาดกากบาทเล็กๆ แทนวงกลม เพื่อความแม่นยำในการมองเห็น
             cv2.drawMarker(output_img, (x, y), (0, 0, 255), markerType=cv2.MARKER_CROSS, markerSize=5, thickness=1)
         
         return output_img, len(kp)
+    
+    # เก็บฟังก์ชันเดิมไว้เผื่ออยากสลับใช้ (Optional)
+    def scan_multiple_items(self, scene_image, threshold=8):
+        """ 
+        (Legacy) ค้นหาแบบเต็มภาพ ไม่แบ่งส่วน
+        """
+        gray_scene = cv2.cvtColor(scene_image, cv2.COLOR_BGR2GRAY)
+        return self._scan_single_image(gray_scene, threshold)
