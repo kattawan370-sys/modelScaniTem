@@ -16,7 +16,6 @@
 ---
 
 ## 📦 โครงสร้างโปรเจกต์
-
 ```
 modelScaniTem/
 ├── README.md                 # ไฟล์เอกสารนี้
@@ -28,9 +27,7 @@ modelScaniTem/
 ```
 
 ---
-
 ## 🚀 เริ่มต้นใช้งาน
-
 ### 1. ติดตั้ง Dependencies
 
 ```bash
