@@ -767,6 +767,9 @@ def render_checklist():
     with c_btn3:
         if st.button("ล้างหมด", type="primary", use_container_width=True):
             st.session_state.detected_list = []
+            for k in list(st.session_state.keys()):
+                if str(k).startswith("chk_"):
+                    del st.session_state[k]
             st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
             
@@ -805,7 +808,8 @@ def render_checklist():
         with c_filter:
             filter_mode = st.radio(
                 "กรองสถานะ:",
-                [f"ทั้งหมด ({total_count})", f"ยังไม่ตรวจ ({remaining_count})", f"ตรวจแล้ว ({checked_count})"],
+                options=["all", "unchecked", "checked"],
+                format_func=lambda x: f"ทั้งหมด ({total_count})" if x == "all" else (f"ยังไม่ตรวจ ({remaining_count})" if x == "unchecked" else f"ตรวจแล้ว ({checked_count})"),
                 horizontal=True,
                 label_visibility="collapsed",
                 key="chk_filter_radio"
@@ -821,7 +825,7 @@ def render_checklist():
             
         search_kw = st.text_input("ค้นหา", placeholder="พิมพ์ชื่อ หรือหมวดหมู่...", label_visibility="collapsed", key="chk_search_input")
     else:
-        filter_mode = "ทั้งหมด"
+        filter_mode = "all"
         view_mode = "กะทัดรัด (Compact)"
         search_kw = ""
 
@@ -838,9 +842,9 @@ def render_checklist():
                     kw = search_kw.lower()
                     if kw not in item['name'].lower() and kw not in item.get('category', '').lower():
                         continue
-                if "ยังไม่ตรวจ" in filter_mode and item.get('checked', False):
+                if filter_mode == "unchecked" and item.get('checked', False):
                     continue
-                if "ตรวจแล้ว" in filter_mode and not item.get('checked', False):
+                if filter_mode == "checked" and not item.get('checked', False):
                     continue
                 filtered_indices.append(i)
 
@@ -858,7 +862,7 @@ def render_checklist():
                             
                             with pair_col:
                                 with st.container(border=True):
-                                    gc1, gc2 = st.columns([0.18, 0.82])
+                                    gc1, gc2, gc3 = st.columns([0.15, 0.71, 0.14])
                                     with gc1:
                                         is_checked = st.checkbox(
                                             label=f"เลือก {item['name']}",
@@ -871,15 +875,22 @@ def render_checklist():
                                         name_style = "color: #525252; text-decoration: line-through;" if is_item_checked else "color: #2C2C2C; font-weight: 600;"
                                         st.markdown(f"""
                                         <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                                            <div style="font-size: 0.90rem; {name_style} line-height: 1.2;">
+                                            <div style="font-size: 0.88rem; {name_style} line-height: 1.2;">
                                                 {item['name']}
                                             </div>
                                             <span class='badge-score'>★ {item['score']}</span>
                                         </div>
                                         <div style="margin-top: 3px;">
-                                            <span class='badge-category' style="font-size: 0.72rem; padding: 1px 6px;">{item['category']}</span>
+                                            <span class='badge-category' style="font-size: 0.70rem; padding: 1px 6px;">{item['category']}</span>
                                         </div>
                                         """, unsafe_allow_html=True)
+                                    with gc3:
+                                        if st.button("✕", key=f"del_grid_{orig_i}", help="ลบรายการนี้"):
+                                            st.session_state.detected_list.pop(orig_i)
+                                            for k in list(st.session_state.keys()):
+                                                if str(k).startswith("chk_"):
+                                                    del st.session_state[k]
+                                            st.rerun()
             else:
                 for orig_i in filtered_indices:
                     item = st.session_state.detected_list[orig_i]
@@ -922,10 +933,10 @@ def render_checklist():
                             
                         with c4:
                             if st.button("✕", key=f"del_{orig_i}", help="ลบรายการนี้"):
-                                if f"chk_{orig_i}" in st.session_state:
-                                    del st.session_state[f"chk_{orig_i}"]
-                                
                                 st.session_state.detected_list.pop(orig_i)
+                                for k in list(st.session_state.keys()):
+                                    if str(k).startswith("chk_"):
+                                        del st.session_state[k]
                                 st.rerun()
 
 # ==========================================
