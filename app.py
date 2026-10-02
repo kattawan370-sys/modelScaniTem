@@ -478,7 +478,7 @@ st.markdown("""
         padding-bottom: 8px !important;
     }
 
-    /* Custom Navigation Bar - Keep 2 tabs side by side on mobile & desktop */
+    /* Custom Navigation Bar - Keep 3 tabs side by side on mobile & desktop */
     .custom-nav-bar {
         margin-bottom: 14px;
     }
@@ -491,17 +491,18 @@ st.markdown("""
     }
     div[data-testid="stHorizontalBlock"]:has(button[key="nav_btn_scan"]) > div[data-testid="stColumn"],
     div[data-testid="stHorizontalBlock"]:has(button[key="nav_btn_scan"]) > .stColumn {
-        flex: 1 1 50% !important;
+        flex: 1 1 33.33% !important;
         min-width: 0 !important;
-        width: 50% !important;
-        max-width: 50% !important;
+        width: 33.33% !important;
+        max-width: 33.33% !important;
     }
     .custom-nav-bar button,
     button[key="nav_btn_scan"],
-    button[key="nav_btn_check"] {
+    button[key="nav_btn_check"],
+    button[key="nav_btn_tray"] {
         height: 48px !important;
         min-height: 48px !important;
-        font-size: 0.95rem !important;
+        font-size: 0.88rem !important;
         font-weight: 600 !important;
         border-radius: 8px !important;
         transition: all 0.2s ease !important;
@@ -509,20 +510,23 @@ st.markdown("""
         white-space: nowrap !important;
     }
     button[key="nav_btn_scan"][kind="primary"],
-    button[key="nav_btn_check"][kind="primary"] {
+    button[key="nav_btn_check"][kind="primary"],
+    button[key="nav_btn_tray"][kind="primary"] {
         background-color: #E81D23 !important;
         color: #FFFFFF !important;
         border: 2px solid #E81D23 !important;
         box-shadow: 0 2px 8px rgba(232, 29, 35, 0.25) !important;
     }
     button[key="nav_btn_scan"][kind="secondary"],
-    button[key="nav_btn_check"][kind="secondary"] {
+    button[key="nav_btn_check"][kind="secondary"],
+    button[key="nav_btn_tray"][kind="secondary"] {
         background-color: #E5E5E5 !important;
         color: #525252 !important;
         border: 1px solid #C7C7C7 !important;
     }
     button[key="nav_btn_scan"][kind="secondary"]:hover,
-    button[key="nav_btn_check"][kind="secondary"]:hover {
+    button[key="nav_btn_check"][kind="secondary"]:hover,
+    button[key="nav_btn_tray"][kind="secondary"]:hover {
         background-color: #FFFFFF !important;
         color: #2C2C2C !important;
         border-color: #525252 !important;
@@ -536,6 +540,12 @@ if 'detected_list' not in st.session_state:
 
 if 'active_view' not in st.session_state:
     st.session_state.active_view = "scan"
+
+if 'tray_check_results' not in st.session_state:
+    st.session_state.tray_check_results = None
+
+if 'tray_check_data' not in st.session_state:
+    st.session_state.tray_check_data = None
 
 # ==========================================
 # ฟังก์ชันจัดการเมื่อมีการเปลี่ยนรูปภาพ
@@ -939,31 +949,293 @@ def render_checklist():
                                         del st.session_state[k]
                                 st.rerun()
 
+
+# ==========================================
+# ฟังก์ชันส่วนจัดการถาด (Tray Template)
+# ==========================================
+def render_tray_register():
+    """รับลงทะเบียน Template ถาด: ถ่ายภาพถาดเต็ม → บันทึกตำแหน่งและ Brightness"""
+    st.markdown("""
+    <div style="background:#E5E5E5;border:1px solid #C7C7C7;border-left:4px solid #2C2C2C;
+                border-radius:8px;padding:10px 12px;margin-bottom:12px;">
+        <p style="margin:0;color:#2C2C2C;font-size:0.88rem;font-weight:600;">\U0001f4cb วิธีใช้:</p>
+        <p style="margin:4px 0 0 0;color:#525252;font-size:0.82rem;">
+            1. ใส่เครื่องมือในถาดให้ครบทุกชิ้น<br>
+            2. ถ่ายภาพจากมุมตั้งฉากกับถาด (Top-down) ให้เห็นถาดทั้งใบ<br>
+            3. ใส่ชื่อถาด แล้วกด “ลงทะเบียน”
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    tray_name = st.text_input(
+        "ชื่อถาด",
+        placeholder="เช่น YA 1/2, YA 2/2, BA",
+        key="tray_reg_name"
+    )
+
+    input_method = st.radio("เลือกวิธี:", ["Camera", "Upload Image"],
+                            horizontal=True, key="tray_reg_method")
+    opencv_img = None
+    if input_method == "Camera":
+        img_file = st.camera_input("ถ่ายภาพถาดเต็ม", key="tray_reg_cam")
+    else:
+        img_file = st.file_uploader("อัปโหลดภาพถาด", type=['jpg', 'png', 'jpeg'],
+                                    key="tray_reg_file")
+
+    if img_file:
+        opencv_img = cv2.imdecode(np.frombuffer(img_file.getvalue(), np.uint8), cv2.IMREAD_COLOR)
+        st.image(opencv_img, channels="BGR", caption="ภาพถาดที่จะลงทะเบียน", use_container_width=True)
+
+    if opencv_img is not None:
+        if not tray_name.strip():
+            st.warning("⚠️ กรุณาใส่ชื่อถาดก่อนลงทะเบียน")
+        else:
+            if st.button("\U0001f5c2️ ลงทะเบียน Template",
+                         type="primary", use_container_width=True, key="tray_reg_btn"):
+                tray_id = (tray_name.strip()
+                           .replace(" ", "_").replace("/", "_").replace(".", "_"))
+                with st.spinner(f"กำลังวิเคราะห์ตำแหน่งเครื่องมือในถาด '{tray_name}'..."):
+                    tray_data = scanner.register_tray_template(
+                        opencv_img, tray_id, tray_name.strip()
+                    )
+
+                slots = tray_data.get('slots', [])
+                if slots:
+                    st.markdown(f"""
+                    <div style="background:#FFFFFF;border:2px solid #E81D23;border-radius:8px;
+                                padding:10px 14px;margin:8px 0;text-align:center;">
+                        <strong style="color:#2C2C2C;font-size:1rem;">
+                            ลงทะเบียนถาด '{tray_name}' สำเร็จ!
+                        </strong>
+                        <span style="color:#525252;font-size:0.84rem;display:block;margin-top:2px;">
+                            พบและบันทึก {len(slots)} รายการ
+                        </span>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    with st.container(height=200):
+                        for slot in slots:
+                            st.markdown(f"""
+                            <div style="display:flex;align-items:center;gap:8px;
+                                        padding:4px 0;border-bottom:1px solid #E5E5E5;">
+                                <span style="color:#2C2C2C;font-size:0.85rem;">
+                                    \u2705 <strong>{slot['name']}</strong>
+                                </span>
+                                <span style="background:#E5E5E5;color:#525252;font-size:0.72rem;
+                                             padding:1px 6px;border-radius:8px;">
+                                    {slot['category']}
+                                </span>
+                                <span style="color:#C7C7C7;font-size:0.70rem;margin-left:auto;">
+                                    \u2609 {slot['mean_brightness']:.0f}
+                                </span>
+                            </div>
+                            """, unsafe_allow_html=True)
+                else:
+                    st.error("ไม่พบเครื่องมือในภาพ กรุณาปรับแสงและลองใหม่")
+
+
+def render_tray_check():
+    """ตรวจสอบถาดว่าเครื่องมือครบหรือขาด"""
+    templates = scanner.list_tray_templates()
+    if not templates:
+        st.info("ยังไม่มีถาดที่ลงทะเบียน กรุณาไปที่แท็บ 'ลงทะเบียนถาด' ก่อน")
+        return
+
+    # Dropdown เลือกถาด
+    tray_options = {
+        f"{t['tray_name']} ({t['slot_count']} รายการ)": t['tray_id']
+        for t in templates
+    }
+    selected_label = st.selectbox("เลือกถาด",
+                                   options=list(tray_options.keys()),
+                                   key="tray_check_select")
+    selected_id = tray_options[selected_label]
+
+    sel_tray = next((t for t in templates if t['tray_id'] == selected_id), None)
+    if sel_tray:
+        reg_at = sel_tray.get('registered_at', '-')[:10]
+        st.caption(f"ลงทะเบียนเมื่อ: {reg_at}")
+
+    st.divider()
+
+    input_method = st.radio("เลือกวิธี:", ["Camera", "Upload Image"],
+                            horizontal=True, key="tray_check_method")
+    opencv_img = None
+    if input_method == "Camera":
+        img_file = st.camera_input("ถ่ายภาพถาดปัจจุบัน", key="tray_check_cam")
+    else:
+        img_file = st.file_uploader("อัปโหลดภาพถาดปัจจุบัน",
+                                    type=['jpg', 'png', 'jpeg'], key="tray_check_file")
+
+    if img_file:
+        opencv_img = cv2.imdecode(np.frombuffer(img_file.getvalue(), np.uint8), cv2.IMREAD_COLOR)
+        st.image(opencv_img, channels="BGR", caption="ภาพถาดปัจจุบัน", use_container_width=True)
+
+    if opencv_img is not None:
+        if st.button("\U0001f50d ตรวจสอบถาด",
+                     type="primary", use_container_width=True, key="tray_check_btn"):
+            with st.spinner("กำลังเปรียบเทียบตำแหน่งเครื่องมือ..."):
+                results, tray_info = scanner.check_tray_slots(opencv_img, selected_id)
+            if results is None:
+                st.error(f"เกิดข้อผิดพลาด: {tray_info}")
+            else:
+                st.session_state.tray_check_results = results
+                st.session_state.tray_check_data = tray_info
+                st.rerun()
+
+    # แสดงผลการตรวจสอบ (ถ้ามี และตรงกับถาดที่เลือกอยู่)
+    r_cache = st.session_state.get('tray_check_results')
+    d_cache = st.session_state.get('tray_check_data')
+    if r_cache and d_cache and d_cache.get('tray_id') == selected_id:
+        results  = r_cache
+        tray_info = d_cache
+
+        present  = [r for r in results if r['status'] == 'present']
+        missing  = [r for r in results if r['status'] == 'missing']
+        pct      = int(len(present) / len(results) * 100) if results else 0
+
+        st.markdown(f"""
+        <div style="display:flex;gap:8px;margin:10px 0 6px 0;">
+            <div style="flex:1;background:#2C2C2C;color:#FFFFFF;border-radius:6px;padding:8px;text-align:center;">
+                <div style="font-size:10px;color:#C7C7C7;">ทั้งหมด</div>
+                <div style="font-size:20px;font-weight:700;">{len(results)}</div>
+            </div>
+            <div style="flex:1;background:#E5E5E5;color:#2C2C2C;border:1px solid #C7C7C7;
+                        border-radius:6px;padding:8px;text-align:center;">
+                <div style="font-size:10px;color:#525252;">ครบ</div>
+                <div style="font-size:20px;font-weight:700;">{len(present)}</div>
+            </div>
+            <div style="flex:1;background:{'#FFFFFF' if missing else '#E5E5E5'};
+                        border:{'2px solid #E81D23' if missing else '1px solid #C7C7C7'};
+                        border-radius:6px;padding:8px;text-align:center;">
+                <div style="font-size:10px;color:{'#E81D23' if missing else '#525252'};">ขาด</div>
+                <div style="font-size:20px;font-weight:700;color:{'#E81D23' if missing else '#2C2C2C'};"
+                >{len(missing)}</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.progress(pct / 100)
+
+        if not missing:
+            st.markdown("""
+            <div style="background:#FFFFFF;border:2px solid #2C2C2C;border-radius:8px;
+                        padding:10px;text-align:center;margin:6px 0;">
+                <strong style="color:#2C2C2C;">✅ เครื่องมือครบทุกชิ้น!</strong>
+            </div>
+            """, unsafe_allow_html=True)
+
+        # รายการแต่ละชิ้น
+        with st.container(height=280):
+            for r in results:
+                is_p  = r['status'] == 'present'
+                icon  = "✅" if is_p else ("❌" if r['status'] == 'missing' else "❓")
+                bg    = "#FFFFFF" if is_p else ("#FFF0F0" if r['status'] == 'missing' else "#FAFAFA")
+                bdr   = "#E5E5E5" if is_p else ("#E81D23" if r['status'] == 'missing' else "#C7C7C7")
+                nstyl = "color:#525252;" if is_p else "color:#2C2C2C;font-weight:700;"
+                dpct  = r.get('brightness_diff_pct', 0)
+                st.markdown(f"""
+                <div style="background:{bg};border:1px solid {bdr};border-radius:6px;
+                     padding:6px 10px;margin-bottom:4px;display:flex;align-items:center;gap:8px;">
+                    <span style="font-size:1.05rem;flex-shrink:0;">{icon}</span>
+                    <span style="{nstyl}font-size:0.86rem;flex:1;overflow:hidden;
+                                 text-overflow:ellipsis;white-space:nowrap;">{r['name']}</span>
+                    <span style="background:#E5E5E5;color:#525252;font-size:0.68rem;
+                         padding:1px 6px;border-radius:8px;flex-shrink:0;">{r['category']}</span>
+                    <span style="font-size:0.68rem;color:#C7C7C7;flex-shrink:0;">Δ{dpct:.0f}%</span>
+                </div>
+                """, unsafe_allow_html=True)
+
+        # ปุ่มเพิ่มรายการขาดเข้า Checklist
+        if missing:
+            if st.button(
+                f"\u2795 เพิ่ม {len(missing)} รายการขาดเข้า Checklist",
+                use_container_width=True, type="primary", key="tray_add_missing_btn"
+            ):
+                existing_files = [x['filename'] for x in st.session_state.detected_list]
+                added = 0
+                for r in missing:
+                    if r['filename'] not in existing_files:
+                        st.session_state.detected_list.append({
+                            "filename":    r['filename'],
+                            "name":        r['name'],
+                            "category":    r['category'],
+                            "description": r.get('description', '-'),
+                            "score":       r.get('score', 0),
+                            "checked":     False
+                        })
+                        added += 1
+                st.session_state.tray_check_results = None
+                st.session_state.tray_check_data    = None
+                st.session_state.active_view        = "checklist"
+                st.rerun()
+
+        # ตัวเลือกเพิ่มเติม
+        with st.expander("⚙️ ตัวเลือกเพิ่มเติม"):
+            if st.button("ลบ Template นี้",
+                         key="tray_delete_btn", type="secondary"):
+                scanner.delete_tray_template(selected_id)
+                st.session_state.tray_check_results = None
+                st.session_state.tray_check_data    = None
+                st.success("ลบ Template สำเร็จ")
+                st.rerun()
+
+
+def render_tray():
+    """หน้าจัดการถาด Template"""
+    st.markdown("""
+    <div style="border-left:4px solid #E81D23;padding-left:10px;margin-bottom:10px;">
+        <h3 style="margin:0;color:#2C2C2C;font-size:18px;">จัดการถาดเครื่องมือ</h3>
+        <p style="margin:2px 0 0 0;color:#525252;font-size:12px;">
+            บันทึกตำแหน่งและความสว่างของแต่ละช่อง ตรวจสอบได้ทันที (ไม่ใช้ SIFT)
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    tab_reg, tab_check = st.tabs(["ลงทะเบียนถาด", "ตรวจสอบถาด"])
+    with tab_reg:
+        render_tray_register()
+    with tab_check:
+        render_tray_check()
+
+
 # ==========================================
 # เมนูนำทางแบบแท็บ (Interactive Navigation Tabs)
 # ==========================================
 total_items = len(st.session_state.detected_list)
 
 st.markdown("<div class='custom-nav-bar'>", unsafe_allow_html=True)
-c_nav1, c_nav2 = st.columns(2)
+c_nav1, c_nav2, c_nav3 = st.columns(3)
 
 with c_nav1:
     is_scan_active = (st.session_state.get('active_view', 'scan') == 'scan')
     btn_type1 = "primary" if is_scan_active else "secondary"
-    if st.button("สแกนเครื่องมือ", key="nav_btn_scan", type=btn_type1, use_container_width=True):
+    if st.button("สแกน", key="nav_btn_scan", type=btn_type1, use_container_width=True):
         st.session_state.active_view = "scan"
         st.rerun()
 
 with c_nav2:
     is_check_active = (st.session_state.get('active_view', 'scan') == 'checklist')
     btn_type2 = "primary" if is_check_active else "secondary"
-    label_check = f"รายการตรวจสอบ ({total_items})"
+    label_check = f"เช็คลิสต์ ({total_items})"
     if st.button(label_check, key="nav_btn_check", type=btn_type2, use_container_width=True):
         st.session_state.active_view = "checklist"
         st.rerun()
+
+with c_nav3:
+    is_tray_active = (st.session_state.get('active_view', 'scan') == 'tray')
+    btn_type3 = "primary" if is_tray_active else "secondary"
+    tray_count = len(scanner.list_tray_templates())
+    label_tray = f"ถาด ({tray_count})"
+    if st.button(label_tray, key="nav_btn_tray", type=btn_type3, use_container_width=True):
+        st.session_state.active_view = "tray"
+        st.rerun()
+
 st.markdown("</div>", unsafe_allow_html=True)
 
-if st.session_state.get('active_view', 'scan') == 'scan':
+active_view = st.session_state.get('active_view', 'scan')
+if active_view == 'scan':
     render_scanner()
-else:
+elif active_view == 'checklist':
     render_checklist()
+else:
+    render_tray()

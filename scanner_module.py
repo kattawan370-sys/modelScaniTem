@@ -1,7 +1,16 @@
 import cv2
 import os
+import sys
 import numpy as np
 import time
+import json
+import datetime
+
+# แก้ปัญหา Windows console encoding (cp1252 ไม่รองรับภาษาไทย)
+try:
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+except Exception:
+    pass
 
 class ShapeScanner:
     """
@@ -302,3 +311,257 @@ class ShapeScanner:
                           markerType=cv2.MARKER_CROSS, markerSize=5, thickness=1)
         
         return output_img, len(kp)
+
+    # ===== SECTION 9: TRAY TEMPLATE METHODS =====
+
+    def _get_tool_info_from_db(self, filename):
+        """โหลดข้อมูลชื่อ/หมวดหมู่จาก data.json"""
+        data_path = os.path.join(self.db_folder, 'data.json')
+        try:
+            with open(data_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                for item in data:
+                    if item.get('filename') == os.path.basename(filename):
+                        return item
+        except Exception:
+            pass
+        return None
+
+    def _get_match_bbox(self, template_shape, homography_matrix, scene_shape):
+        """คำนวณ Bounding Box ในภาพฉากจาก Homography Matrix"""
+        h_tmpl, w_tmpl = template_shape
+        h_scene, w_scene = scene_shape
+        pts = np.float32([
+            [0, 0], [0, h_tmpl - 1], [w_tmpl - 1, h_tmpl - 1], [w_tmpl - 1, 0]
+        ]).reshape(-1, 1, 2)
+        try:
+            dst = cv2.perspectiveTransform(pts, homography_matrix)
+            x_coords = dst[:, 0, 0]
+            y_coords = dst[:, 0, 1]
+            x1 = float(max(0.0, np.min(x_coords)))
+            y1 = float(max(0.0, np.min(y_coords)))
+            x2 = float(min(float(w_scene), np.max(x_coords)))
+            y2 = float(min(float(h_scene), np.max(y_coords)))
+            # กรองผลที่ไม่สมเหตุสมผล
+            if x2 - x1 < 5 or y2 - y1 < 5:
+                return None
+            return x1, y1, x2, y2
+        except Exception:
+            return None
+
+    def _match_template_with_position(self, template, kp_scene, des_scene, scene_shape, threshold=8, min_area=100):
+        """จับคู่เทมเพลตและคืนตำแหน่ง Bounding Box ในภาพ"""
+        try:
+            good_matches = self._match_features(template['des'], des_scene)
+            if len(good_matches) < 8:
+                return None
+
+            M, mask, real_score = self._calculate_homography(
+                template['kp'], kp_scene, good_matches
+            )
+            if M is None or real_score < threshold:
+                return None
+
+            area = self._calculate_match_area(template['shape'], M)
+            if area <= min_area:
+                return None
+
+            bbox = self._get_match_bbox(template['shape'], M, scene_shape)
+            if bbox is None:
+                return None
+
+            return {
+                "filename": template['name'],
+                "score": int(real_score),
+                "area": int(area),
+                "bbox": bbox  # (x1, y1, x2, y2) relative to tile
+            }
+        except Exception:
+            return None
+
+    def register_tray_template(self, scene_img, tray_id, tray_name, threshold=8):
+        """
+        ลงทะเบียน Template ถาด: สแกนหาเครื่องมือ + บันทึกตำแหน่งและ Brightness Baseline
+
+        Args:
+            scene_img : ภาพถาด BGR ที่มีเครื่องมือครบทุกชิ้น
+            tray_id   : รหัสถาด (ใช้เป็นชื่อไฟล์ JSON)
+            tray_name : ชื่อถาดสำหรับแสดงผล
+            threshold : เกณฑ์คะแนน SIFT ขั้นต่ำ
+
+        Returns:
+            dict: ข้อมูล Template ที่บันทึก (tray_name, slots, ...)
+        """
+        gray_full = cv2.cvtColor(scene_img, cv2.COLOR_BGR2GRAY)
+        h_full, w_full = gray_full.shape
+
+        # Tiling เหมือน scan_with_tiling (4 ส่วน + overlap 10%)
+        mid_h, mid_w = h_full // 2, w_full // 2
+        overlap_h = int(h_full * 0.1)
+        overlap_w = int(w_full * 0.1)
+
+        # (row_start, col_start, row_end, col_end)
+        tiles_info = [
+            (0,                 0,                 mid_h + overlap_h, mid_w + overlap_w),  # ซ้ายบน
+            (0,                 mid_w - overlap_w, mid_h + overlap_h, w_full),              # ขวาบน
+            (mid_h - overlap_h, 0,                 h_full,            mid_w + overlap_w),  # ซ้ายล่าง
+            (mid_h - overlap_h, mid_w - overlap_w, h_full,            w_full),              # ขวาล่าง
+        ]
+
+        all_results = {}  # fname -> best result
+
+        for (r1, c1, r2, c2) in tiles_info:
+            tile_gray  = gray_full[r1:r2, c1:c2]
+            tile_clahe = self._apply_clahe(tile_gray)
+            tile_h, tile_w = tile_clahe.shape
+
+            kp_scene, des_scene = self._extract_features(tile_clahe, mask=None)
+            if des_scene is None:
+                continue
+
+            for tmpl in self.templates:
+                result = self._match_template_with_position(
+                    tmpl, kp_scene, des_scene, (tile_h, tile_w), threshold
+                )
+                if result is None:
+                    continue
+
+                fname = result['filename']
+
+                # แปลงตำแหน่งจาก Tile → Full Image
+                tx1, ty1, tx2, ty2 = result['bbox']
+                fx1 = max(0.0, min(tx1 + c1, float(w_full)))
+                fy1 = max(0.0, min(ty1 + r1, float(h_full)))
+                fx2 = max(0.0, min(tx2 + c1, float(w_full)))
+                fy2 = max(0.0, min(ty2 + r1, float(h_full)))
+
+                if fname not in all_results or result['score'] > all_results[fname]['score']:
+                    # วัดค่าความสว่าง Baseline ในพื้นที่ ROI
+                    crop = gray_full[int(fy1):int(fy2), int(fx1):int(fx2)]
+                    mean_bright = float(np.mean(crop)) if crop.size > 0 else 128.0
+
+                    # โหลดชื่อ / หมวดหมู่จาก data.json
+                    info = self._get_tool_info_from_db(fname)
+
+                    all_results[fname] = {
+                        "filename": fname,
+                        "name": info['name'] if info else fname,
+                        "category": info['category'] if info else "Unknown",
+                        "description": info.get('description', '-') if info else '-',
+                        "score": result['score'],
+                        "bbox_norm": [
+                            round(fx1 / w_full, 5),
+                            round(fy1 / h_full, 5),
+                            round(fx2 / w_full, 5),
+                            round(fy2 / h_full, 5)
+                        ],
+                        "mean_brightness": round(mean_bright, 2)
+                    }
+
+        # สร้างโฟลเดอร์ tray_templates/ ถ้ายังไม่มี
+        template_dir = os.path.join(self.db_folder, 'tray_templates')
+        os.makedirs(template_dir, exist_ok=True)
+
+        tray_data = {
+            "tray_name": tray_name,
+            "tray_id": tray_id,
+            "registered_at": datetime.datetime.now().isoformat(timespec='seconds'),
+            "image_size": [w_full, h_full],
+            "slots": list(all_results.values())
+        }
+
+        out_path = os.path.join(template_dir, f"{tray_id}.json")
+        with open(out_path, 'w', encoding='utf-8') as f:
+            json.dump(tray_data, f, ensure_ascii=False, indent=2)
+
+        print(f"\u2705 บันทึก Template ถาด '{tray_name}': {len(all_results)} รายการ -> {out_path}")
+        return tray_data
+
+    def check_tray_slots(self, scene_img, tray_id, brightness_threshold_pct=18):
+        """
+        ตรวจสอบว่าถาดมีเครื่องมือครบตาม Template โดยใช้ Region Comparison (Brightness)
+
+        Args:
+            scene_img                : ภาพถาดปัจจุบัน BGR
+            tray_id                  : รหัสถาดที่ต้องการตรวจ
+            brightness_threshold_pct : % ความต่างของ brightness ที่ถือว่า "ขาด" (default 18%)
+
+        Returns:
+            Tuple: (List[dict] results, dict tray_data) หรือ (None, error_msg)
+        """
+        template_path = os.path.join(self.db_folder, 'tray_templates', f"{tray_id}.json")
+        if not os.path.exists(template_path):
+            return None, f"ไม่พบ Template: {tray_id}"
+
+        with open(template_path, 'r', encoding='utf-8') as f:
+            tray_data = json.load(f)
+
+        gray_scene = cv2.cvtColor(scene_img, cv2.COLOR_BGR2GRAY)
+        h_scene, w_scene = gray_scene.shape
+
+        results = []
+        for slot in tray_data['slots']:
+            x1_n, y1_n, x2_n, y2_n = slot['bbox_norm']
+
+            # Denormalize + padding 1% เพื่อความยืดหยุ่น
+            pad_x = w_scene * 0.01
+            pad_y = h_scene * 0.01
+            x1 = int(max(0, x1_n * w_scene - pad_x))
+            y1 = int(max(0, y1_n * h_scene - pad_y))
+            x2 = int(min(w_scene, x2_n * w_scene + pad_x))
+            y2 = int(min(h_scene, y2_n * h_scene + pad_y))
+
+            crop = gray_scene[y1:y2, x1:x2]
+
+            if crop.size == 0:
+                status       = "unknown"
+                current_b    = slot['mean_brightness']
+                diff_pct     = 0.0
+            else:
+                current_b = float(np.mean(crop))
+                baseline  = slot['mean_brightness']
+                diff_pct  = abs(current_b - baseline) / max(baseline, 1.0) * 100
+                status    = "missing" if diff_pct > brightness_threshold_pct else "present"
+
+            results.append({
+                **slot,
+                "status":               status,
+                "current_brightness":   round(current_b, 2),
+                "brightness_diff_pct": round(diff_pct, 1),
+                "bbox_px":             [x1, y1, x2, y2]
+            })
+
+        return results, tray_data
+
+    def list_tray_templates(self):
+        """คืนรายชื่อ Template ถาดทั้งหมดที่ลงทะเบียนแล้ว"""
+        template_dir = os.path.join(self.db_folder, 'tray_templates')
+        if not os.path.exists(template_dir):
+            return []
+
+        templates = []
+        for fname in os.listdir(template_dir):
+            if not fname.endswith('.json'):
+                continue
+            path = os.path.join(template_dir, fname)
+            try:
+                with open(path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                templates.append({
+                    "tray_id":       data['tray_id'],
+                    "tray_name":     data['tray_name'],
+                    "slot_count":    len(data.get('slots', [])),
+                    "registered_at": data.get('registered_at', '-')
+                })
+            except Exception:
+                pass
+
+        return sorted(templates, key=lambda x: x['tray_name'])
+
+    def delete_tray_template(self, tray_id):
+        """ลบ Template ถาด"""
+        path = os.path.join(self.db_folder, 'tray_templates', f"{tray_id}.json")
+        if os.path.exists(path):
+            os.remove(path)
+            return True
+        return False
