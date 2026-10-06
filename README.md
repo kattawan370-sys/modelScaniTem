@@ -399,12 +399,34 @@ for threshold in [5, 8, 10, 12]:
 
 ## 🔧 สิ่งที่อาจต้องปรับปรุงในอนาคต
 
-- [ ] รองรับชนิด Detector อื่นๆ (AKAZE, ORB)
+- [x] รองรับฐานข้อมูล PostgreSQL สำหรับจัดการ Dataset และผลลัพธ์
+- [x] ระบบหลังบ้าน Admin Dashboard (`admin.py`) พร้อมระบบ Login
+- [x] ระบบจัดเก็บและ Export Dataset สำหรับโมเดล YOLOv8
 - [ ] การประมวลผลแบบ GPU
-- [ ] เหมือนฐานข้อมูลแบบ Deep Learning
 - [ ] CLI Tool สำหรับ batch processing
 - [ ] Unit Tests
 - [ ] Docker support
+
+---
+
+## 🛠️ ระบบหลังบ้าน (Admin Backend & PostgreSQL)
+
+### 1. ติดตั้ง Dependencies
+```bash
+pip install -r requirements.txt
+```
+
+### 2. ตั้งค่าการเชื่อมต่อฐานข้อมูล (.env)
+```env
+DATABASE_URL=postgresql://postgres:1234@localhost:5432/model_stcan_item
+```
+
+### 3. เริ่มใช้งาน Admin Backend
+```bash
+streamlit run admin.py
+```
+- **บัญชีเริ่มต้น:** `admin` / `admin1234`
+- **ระบบจะสร้างตารางทั้ง 7 ใน PostgreSQL ให้อัตโนมัติเมื่อเริ่มเชื่อมต่อ**
 
 ---
 

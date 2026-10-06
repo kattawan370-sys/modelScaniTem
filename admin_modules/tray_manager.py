@@ -1,0 +1,175 @@
+"""
+Tray Template Manager module for Admin backend.
+Manages Tray layout templates and slot positions in PostgreSQL.
+Supports importing existing JSON tray templates (Y31, Y, etc.)
+and setting up Tray 3 (16 items).
+"""
+import json
+from pathlib import Path
+import streamlit as st
+from db import get_db
+from models_db import TrayTemplate, TraySlot, ToolClass
+
+
+def import_existing_json_trays():
+    """Imports existing tray JSON files from mock_database/tray_templates into PostgreSQL."""
+    templates_dir = Path("mock_database/tray_templates")
+    if not templates_dir.exists():
+        return 0
+
+    count = 0
+    with get_db() as db:
+        for json_file in templates_dir.glob("*.json"):
+            try:
+                with open(json_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+
+                tray_id = data.get("tray_id") or json_file.stem
+                tray_name = data.get("tray_name", tray_id)
+                image_size = data.get("image_size", [1920, 1080])
+
+                # Check if template already exists
+                existing = db.query(TrayTemplate).filter(TrayTemplate.tray_id == tray_id).first()
+                if not existing:
+                    template = TrayTemplate(
+                        tray_id=tray_id,
+                        tray_name=tray_name,
+                        description=f"Imported from {json_file.name}",
+                        image_width=image_size[0] if len(image_size) > 0 else 1920,
+                        image_height=image_size[1] if len(image_size) > 1 else 1080,
+                        is_active=True
+                    )
+                    db.add(template)
+                    db.flush()  # to obtain template.id
+
+                    slots = data.get("slots", [])
+                    for idx, s in enumerate(slots):
+                        bbox = s.get("bbox_norm", [0, 0, 1, 1])
+                        # Normalize 4 coordinates
+                        x1 = bbox[0] if len(bbox) > 0 else 0.0
+                        y1 = bbox[1] if len(bbox) > 1 else 0.0
+                        x2 = bbox[2] if len(bbox) > 2 else 1.0
+                        y2 = bbox[3] if len(bbox) > 3 else 1.0
+
+                        slot_obj = TraySlot(
+                            tray_template_id=template.id,
+                            slot_number=idx + 1,
+                            item_name=s.get("name", f"Slot {idx + 1}"),
+                            item_code=s.get("filename", "").replace(".jpg", "").replace(".png", ""),
+                            bbox_x1_norm=float(x1),
+                            bbox_y1_norm=float(y1),
+                            bbox_x2_norm=float(x2),
+                            bbox_y2_norm=float(y2),
+                            is_required=True
+                        )
+                        db.add(slot_obj)
+
+                    template.slot_count = len(slots)
+                    count += 1
+            except Exception as e:
+                st.error(f"เกิดข้อผิดพลาดในการอ่าน {json_file.name}: {e}")
+
+    return count
+
+
+def render_tray_manager(current_user: dict):
+    """Renders the Tray Template Manager UI."""
+    st.markdown("### 🍱 จัดการถาดอุปกรณ์ (Tray Template Manager)")
+    st.caption("กำหนดโครงสร้างถาด ตำแหน่งช่อง (Slots) และรายการอุปกรณ์ประจำแต่ละช่อง")
+
+    tab_list, tab_tray3, tab_import = st.tabs(["📋 รายการถาดในระบบ", "🎯 ตั้งค่าถาดที่ 3 (16 ชิ้น)", "📥 นำเข้าจาก JSON เดิม"])
+
+    # TAB 1: List Trays
+    with tab_list:
+        try:
+            with get_db() as db:
+                raw_trays = db.query(TrayTemplate).all()
+                trays = []
+                for t in raw_trays:
+                    slots_info = [
+                        {
+                            "ช่องที่": s.slot_number,
+                            "ชื่ออุปกรณ์": s.item_name,
+                            "รหัส": s.item_code or "-",
+                            "BBox [x1, y1, x2, y2]": f"[{s.bbox_x1_norm:.2f}, {s.bbox_y1_norm:.2f}, {s.bbox_x2_norm:.2f}, {s.bbox_y2_norm:.2f}]",
+                            "จำเป็นต้องมี": "✅" if s.is_required else "❌"
+                        }
+                        for s in t.slots
+                    ]
+                    trays.append({
+                        "tray_id": t.tray_id,
+                        "tray_name": t.tray_name,
+                        "description": t.description,
+                        "is_active": t.is_active,
+                        "slots": slots_info
+                    })
+
+            if not trays:
+                st.info("ยังไม่มีข้อมูลถาดในระบบ กรุณานำเข้าจากแท็บ 'นำเข้าจาก JSON เดิม'")
+            else:
+                for t in trays:
+                    with st.expander(f"🍱 {t['tray_name']} (ID: {t['tray_id']}) - {len(t['slots'])} ช่อง"):
+                        st.write(f"คำอธิบาย: {t['description'] or '-'}")
+                        st.write(f"สถานะ: {'🟢 ใช้งาน' if t['is_active'] else '🔴 ปิดใช้งาน'}")
+
+                        if t['slots']:
+                            st.table(t['slots'])
+        except Exception as e:
+            st.error(f"ไม่สามารถโหลดข้อมูลถาด: {e}")
+
+    # TAB 2: Setup Tray 3
+    with tab_tray3:
+        st.markdown("#### 🎯 ลงทะเบียนถาดที่ 3 (ถาดเริ่มต้น 16 รายการ)")
+        st.info("ถาดที่ 3 มีอุปกรณ์หลัก 16 รายการพร้อมหมายเลขกำกับ (ลูกบ๊อกซ์, คีม, ด้ามฟรี ฯลฯ)")
+        
+        with st.form("create_tray3_form"):
+            t3_name = st.text_input("ชื่อถาด", value="ถาดเครื่องมือชุดที่ 3 (Tray 03)")
+            t3_id = st.text_input("Tray ID", value="TRAY_03")
+            t3_desc = st.text_area("รายละเอียด", value="ถาดเครื่องมือมาตรฐาน 16 ช่อง พร้อมมาร์กเกอร์และตำแหน่งชัดเจน")
+            btn_create_t3 = st.form_submit_button("สร้างถาดที่ 3 เข้าระบบ", use_container_width=True)
+
+            if btn_create_t3:
+                try:
+                    with get_db() as db:
+                        exist = db.query(TrayTemplate).filter(TrayTemplate.tray_id == t3_id).first()
+                        if exist:
+                            st.warning(f"ถาด ID '{t3_id}' มีอยู่ในระบบแล้ว")
+                        else:
+                            t3 = TrayTemplate(
+                                tray_id=t3_id,
+                                tray_name=t3_name,
+                                description=t3_desc,
+                                slot_count=16,
+                                is_active=True
+                            )
+                            db.add(t3)
+                            db.flush()
+
+                            # Create 16 initial slots
+                            for slot_i in range(1, 17):
+                                slot = TraySlot(
+                                    tray_template_id=t3.id,
+                                    slot_number=slot_i,
+                                    item_name=f"อุปกรณ์ช่องที่ {slot_i}",
+                                    bbox_x1_norm=0.0,
+                                    bbox_y1_norm=0.0,
+                                    bbox_x2_norm=1.0,
+                                    bbox_y2_norm=1.0,
+                                    is_required=True
+                                )
+                                db.add(slot)
+                            st.success("สร้างถาดที่ 3 พร้อม 16 ช่อง เรียบร้อยแล้ว!")
+                            st.rerun()
+                except Exception as e:
+                    st.error(f"เกิดข้อผิดพลาด: {e}")
+
+    # TAB 3: Import from JSON
+    with tab_import:
+        st.markdown("#### 📥 นำเข้าแม่แบบถาดเดิมจากโฟลเดอร์ mock_database/tray_templates")
+        if st.button("🚀 นำเข้าแม่แบบถาดเดิมทั้งหมด", use_container_width=True):
+            imported = import_existing_json_trays()
+            if imported > 0:
+                st.success(f"นำเข้าถาดเดิมสำเร็จ {imported} แบบ!")
+                st.rerun()
+            else:
+                st.info("ไม่มีถาดใหม่ที่ต้องนำเข้า หรือนำเข้าไว้แล้ว")
