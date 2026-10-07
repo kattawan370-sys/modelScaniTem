@@ -1,0 +1,53 @@
+{
+  "tray_name": "aaaa",
+  "tray_id": "aaaa",
+  "registered_at": "2026-10-07T13:47:49",
+  "image_size": [
+    4284,
+    5712
+  ],
+  "slots": [
+    {
+      "filename": "90843-08F48.jpg",
+      "name": "Bearing Installer Set",
+      "category": "Engine Tools",
+      "description": "ชุดตอกลูกปืนหรือซีล (Bearing/Seal Driver) ประกอบด้วยแกนเกลียวและปลอกโลหะรมดำ",
+      "score": 8,
+      "bbox_norm": [
+        0.50679,
+        0.30497,
+        0.53185,
+        0.32547
+      ],
+      "mean_brightness": 74.31
+    },
+    {
+      "filename": "90843-12007.png",
+      "name": "90843-12007.png",
+      "category": "Unknown",
+      "description": "-",
+      "score": 9,
+      "bbox_norm": [
+        0.50391,
+        0.18734,
+        0.52108,
+        0.24455
+      ],
+      "mean_brightness": 42.78
+    },
+    {
+      "filename": "90843-08F33.jpg",
+      "name": "Mitutoyo Vernier Caliper",
+      "category": "Measuring Tools",
+      "description": "เวอร์เนียร์คาลิปเปอร์แบรนด์ Mitutoyo ความละเอียดสูง พร้อมกล่องบรรจุภัณฑ์สีส้ม",
+      "score": 26,
+      "bbox_norm": [
+        0.17375,
+        0.86321,
+        0.36367,
+        1.0
+      ],
+      "mean_brightness": 91.64
+    }
+  ]
+}

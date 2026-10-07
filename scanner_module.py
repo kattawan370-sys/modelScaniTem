@@ -86,7 +86,107 @@ class ShapeScanner:
         except Exception as e:
             print(f"⚠️ ข้ามไฟล์ {filename}: {e}")
     
-    # ===== SECTION 3: IMAGE PROCESSING =====
+    # ===== SECTION 3: IMAGE PROCESSING & AUTO-CROP =====
+    def detect_and_crop_board(self, image, min_area_ratio=0.15):
+        """
+        ตรวจจับขอบกระดานหรือถาดเครื่องมืออัตโนมัติ (Automatic Board / Tray Edge Detection)
+        และทำ Perspective Transform (Crop) เพื่อตัดผนัง/พื้นหลังรอบนอกทิ้ง
+
+        Returns:
+            Tuple: (cropped_image, is_detected, quad_points)
+        """
+        if image is None or image.size == 0:
+            return image, False, None
+
+        h, w = image.shape[:2]
+
+        # ย่อขนาดชั่วคราวเพื่อหาขอบอย่างรวดเร็วและแม่นยำ
+        scale = 800.0 / max(h, w) if max(h, w) > 800 else 1.0
+        if scale < 1.0:
+            small = cv2.resize(image, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+        else:
+            small = image.copy()
+
+        small_h, small_w = small.shape[:2]
+        gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
+        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+
+        best_quad = None
+
+        # 1. วิธี Canny Edge Detection
+        edges = cv2.Canny(blurred, 30, 150)
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+        dilated = cv2.dilate(edges, kernel, iterations=2)
+        contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        for c in sorted(contours, key=cv2.contourArea, reverse=True):
+            area = cv2.contourArea(c)
+            if area < min_area_ratio * (small_h * small_w):
+                continue
+            peri = cv2.arcLength(c, True)
+            approx = cv2.approxPolyDP(c, 0.02 * peri, True)
+            if len(approx) == 4 and cv2.isContourConvex(approx):
+                best_quad = approx / scale
+                break
+
+        # 2. ถ้ายังไม่เจอ ลองวิธี Adaptive Threshold
+        if best_quad is None:
+            thresh = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 11, 2)
+            thresh_dilated = cv2.dilate(thresh, kernel, iterations=2)
+            contours_t, _ = cv2.findContours(thresh_dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            for c in sorted(contours_t, key=cv2.contourArea, reverse=True):
+                area = cv2.contourArea(c)
+                if area < min_area_ratio * (small_h * small_w):
+                    continue
+                peri = cv2.arcLength(c, True)
+                approx = cv2.approxPolyDP(c, 0.02 * peri, True)
+                if len(approx) == 4 and cv2.isContourConvex(approx):
+                    best_quad = approx / scale
+                    break
+
+        if best_quad is not None:
+            pts = best_quad.reshape(4, 2).astype('float32')
+            rect = np.zeros((4, 2), dtype='float32')
+
+            # จัดเรียง 4 จุด: top-left, top-right, bottom-right, bottom-left
+            s = pts.sum(axis=1)
+            rect[0] = pts[np.argmin(s)]
+            rect[2] = pts[np.argmax(s)]
+
+            diff = np.diff(pts, axis=1)
+            rect[1] = pts[np.argmin(diff)]
+            rect[3] = pts[np.argmax(diff)]
+
+            (tl, tr, br, bl) = rect
+            widthA = np.sqrt(((br[0] - bl[0]) ** 2) + ((br[1] - bl[1]) ** 2))
+            widthB = np.sqrt(((tr[0] - tl[0]) ** 2) + ((tr[1] - tl[1]) ** 2))
+            maxWidth = max(int(widthA), int(widthB))
+
+            heightA = np.sqrt(((tr[0] - br[0]) ** 2) + ((tr[1] - br[1]) ** 2))
+            heightB = np.sqrt(((tl[0] - bl[0]) ** 2) + ((tl[1] - bl[1]) ** 2))
+            maxHeight = max(int(heightA), int(heightB))
+
+            if maxWidth > 60 and maxHeight > 60:
+                dst = np.array([
+                    [0, 0],
+                    [maxWidth - 1, 0],
+                    [maxWidth - 1, maxHeight - 1],
+                    [0, maxHeight - 1]], dtype='float32')
+                M = cv2.getPerspectiveTransform(rect, dst)
+                warped = cv2.warpPerspective(image, M, (maxWidth, maxHeight))
+                return warped, True, rect
+
+        return image, False, None
+
+    def draw_board_boundary(self, image, rect_pts):
+        """วาดเส้นกรอบสีเขียวแสดงตำแหน่งขอบกระดานที่ตรวจพบ"""
+        if rect_pts is None:
+            return image
+        out = image.copy()
+        pts = np.int32(rect_pts).reshape((-1, 1, 2))
+        cv2.polylines(out, [pts], isClosed=True, color=(0, 230, 115), thickness=3)
+        return out
+
     def _preprocess_image(self, img_color):
         """แปลงภาพสีเป็นภาพขาวดำและปรับแสง"""
         img_gray = cv2.cvtColor(img_color, cv2.COLOR_BGR2GRAY)
@@ -290,21 +390,49 @@ class ShapeScanner:
         results = self._scan_single_image(gray_scene, threshold, min_area)
         return sorted(results, key=lambda x: x['score'], reverse=True)
     
+    def _create_tool_mask(self, img_gray):
+        """
+        สร้าง Mask เพื่อคัดเอาเฉพาะตัวเครื่องมือ (Tools Foreground)
+        และตัดพื้นหลังสีสว่าง หรือพื้นผิวเรียบออก
+        """
+        blurred = cv2.GaussianBlur(img_gray, (5, 5), 0)
+        
+        # 1. Intensity Threshold: ตัดพื้นหลังสว่างออก
+        _, thresh_dark = cv2.threshold(blurred, 175, 255, cv2.THRESH_BINARY_INV)
+        
+        # 2. Gradient / Edge magnitude: เครื่องมือโลหะมีขอบและคอนทราสต์ชัดเจน
+        grad_x = cv2.Sobel(blurred, cv2.CV_32F, 1, 0, ksize=3)
+        grad_y = cv2.Sobel(blurred, cv2.CV_32F, 0, 1, ksize=3)
+        grad_mag = cv2.magnitude(grad_x, grad_y)
+        grad_norm = cv2.normalize(grad_mag, None, 0, 255, cv2.NORM_MINMAX).astype('uint8')
+        _, edge_mask = cv2.threshold(grad_norm, 25, 255, cv2.THRESH_BINARY)
+        
+        # รวม Mask ทั้งความเข้มและขอบคม
+        combined = cv2.bitwise_or(thresh_dark, edge_mask)
+        
+        # ลบ Noise จุดเล็กๆ ออก และขยายครอบคลุมตัวเครื่องมือ
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+        tool_mask = cv2.morphologyEx(combined, cv2.MORPH_OPEN, kernel)
+        tool_mask = cv2.dilate(tool_mask, kernel, iterations=2)
+        return tool_mask
+
     # ===== SECTION 8: VISUALIZATION =====
     def visualize_keypoints(self, image):
         """
-        วาดจุดลักษณะเฉพาะบนภาพ
+        วาดจุดลักษณะเฉพาะบนตัวเครื่องมือเท่านั้น (ไม่วาดบนพื้นหลัง)
         
         Returns:
             Tuple: (ภาพวาด, จำนวนจุด)
         """
         output_img = image.copy()
         gray = cv2.cvtColor(output_img, cv2.COLOR_BGR2GRAY)
-        
         gray = self._apply_clahe(gray)
-        kp, _ = self._extract_features(gray, mask=None)
         
-        # วาดกากบาทเล็กๆ สีแดง
+        # กรองเฉพาะบริเวณตัวเครื่องมือ
+        tool_mask = self._create_tool_mask(gray)
+        kp, _ = self._extract_features(gray, mask=tool_mask)
+        
+        # วาดกากบาทเล็กๆ สีแดงเฉพาะบนตัวเครื่องมือ
         for k in kp:
             x, y = int(k.pt[0]), int(k.pt[1])
             cv2.drawMarker(output_img, (x, y), (0, 0, 255), 

@@ -1,0 +1,67 @@
+{
+  "tray_name": "yyyy",
+  "tray_id": "yyyy",
+  "registered_at": "2026-10-07T15:41:12",
+  "image_size": [
+    4276,
+    5704
+  ],
+  "slots": [
+    {
+      "filename": "90843-08F48.jpg",
+      "name": "Bearing Installer Set",
+      "category": "Engine Tools",
+      "description": "ชุดตอกลูกปืนหรือซีล (Bearing/Seal Driver) ประกอบด้วยแกนเกลียวและปลอกโลหะรมดำ",
+      "score": 9,
+      "bbox_norm": [
+        0.38667,
+        0.50833,
+        0.3977,
+        0.54598
+      ],
+      "mean_brightness": 203.34
+    },
+    {
+      "filename": "90843-08F63.jpg",
+      "name": "KTC Impact Driver Set",
+      "category": "Hand Tools",
+      "description": "ชุดไขควงตอกกระแทก KTC มาพร้อมดอกไขควงหลายขนาดและกล่องเหล็กสีแดง สำหรับถอดน็อตที่แน่นหรือเป็นสนิม",
+      "score": 9,
+      "bbox_norm": [
+        0.77497,
+        0.06696,
+        0.77996,
+        0.10925
+      ],
+      "mean_brightness": 182.32
+    },
+    {
+      "filename": "90843-08F33.jpg",
+      "name": "Mitutoyo Vernier Caliper",
+      "category": "Measuring Tools",
+      "description": "เวอร์เนียร์คาลิปเปอร์แบรนด์ Mitutoyo ความละเอียดสูง พร้อมกล่องบรรจุภัณฑ์สีส้ม",
+      "score": 11,
+      "bbox_norm": [
+        0.22981,
+        0.45539,
+        0.23807,
+        0.47759
+      ],
+      "mean_brightness": 141.28
+    },
+    {
+      "filename": "90890-01135.jpg",
+      "name": "Crankcase Separator (Yamaha Type)",
+      "category": "Engine Tools",
+      "description": "เครื่องมือแยกแคร้งเครื่องยนต์แบบมาตรฐาน Yamaha สำหรับผ่าเครื่องเพื่อซ่อมบำรุงภายใน",
+      "score": 10,
+      "bbox_norm": [
+        0.59372,
+        0.73692,
+        0.59986,
+        0.75555
+      ],
+      "mean_brightness": 105.83
+    }
+  ]
+}

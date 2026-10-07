@@ -1,0 +1,617 @@
+[
+  {
+    "job_id": "JOB-20261007-1541",
+    "source_type": "tray",
+    "tray_name": "yyyy",
+    "timestamp": "2026-10-07 15:41:26",
+    "date": "07/10/2026",
+    "time": "15:41",
+    "inspector": "บอส",
+    "bay": "Bay 01 (ช็อปเครื่องกล)",
+    "note": "",
+    "total_items": 4,
+    "checked_items": 3,
+    "is_complete": false,
+    "status": "เครื่องมือไม่ครบ (Incomplete)",
+    "items": [
+      {
+        "filename": "90843-08F48.jpg",
+        "name": "Bearing Installer Set",
+        "category": "Engine Tools",
+        "description": "เครื่องมือในถาด 'yyyy' (พิกัดช่อง)",
+        "score": 100,
+        "checked": true
+      },
+      {
+        "filename": "90843-08F63.jpg",
+        "name": "KTC Impact Driver Set",
+        "category": "Hand Tools",
+        "description": "เครื่องมือในถาด 'yyyy' (พิกัดช่อง)",
+        "score": 100,
+        "checked": false
+      },
+      {
+        "filename": "90843-08F33.jpg",
+        "name": "Mitutoyo Vernier Caliper",
+        "category": "Measuring Tools",
+        "description": "เครื่องมือในถาด 'yyyy' (พิกัดช่อง)",
+        "score": 100,
+        "checked": true
+      },
+      {
+        "filename": "90890-01135.jpg",
+        "name": "Crankcase Separator (Yamaha Type)",
+        "category": "Engine Tools",
+        "description": "เครื่องมือในถาด 'yyyy' (พิกัดช่อง)",
+        "score": 100,
+        "checked": true
+      }
+    ]
+  },
+  {
+    "job_id": "JOB-20261007-1538",
+    "source_type": "scan",
+    "tray_name": null,
+    "timestamp": "2026-10-07 15:38:50",
+    "date": "07/10/2026",
+    "time": "15:38",
+    "inspector": "ชาติชาย",
+    "bay": "Bay 01 (ช็อปเครื่องกล)",
+    "note": "",
+    "total_items": 8,
+    "checked_items": 2,
+    "is_complete": false,
+    "status": "บันทึกตรวจนับ (8 ชิ้น)",
+    "items": [
+      {
+        "filename": "90843-08F87.jpg",
+        "name": "Hex Bit Socket Set",
+        "category": "Socket Tools",
+        "description": "ชุดลูกบล็อกเดือยโผล่หกเหลี่ยมและหัวแฉก (Hex/Phillips Bit Socket) บนรางเก็บ สำหรับใช้งานกับด้ามฟรี",
+        "score": 1072,
+        "checked": true
+      },
+      {
+        "filename": "90843-08F66.jpg",
+        "name": "Pin Punch & Chisel Set",
+        "category": "Hand Tools",
+        "description": "ชุดเหล็กส่งและสกัดขนาดเล็ก (Pin Punch Set) บรรจุในซองเก็บ สำหรับงานตอกสลัก ปลิ้นสลัก หรือตัดชิ้นงาน",
+        "score": 14,
+        "checked": false
+      },
+      {
+        "filename": "90843-08E11.jpg",
+        "name": "Flywheel Puller Bolt",
+        "category": "Engine Tools",
+        "description": "เกลียวดูดล้อแม่เหล็ก (Flywheel Puller) พร้อมหัวจับขนาดใหญ่ลายกันลื่น",
+        "score": 10,
+        "checked": false
+      },
+      {
+        "filename": "90843-08F29.jpg",
+        "name": "T-Handle Wrench (Long Reach)",
+        "category": "Hand Tools",
+        "description": "ประแจตัวที (T-Handle) ก้านยาว สำหรับไขน็อตในที่ลึก เข้าถึงจุดที่แคบได้ดี",
+        "score": 10,
+        "checked": false
+      },
+      {
+        "filename": "90843-08E16.jpg",
+        "name": "Valve Spring Compressor (C-Clamp)",
+        "category": "Engine Tools",
+        "description": "ชุดกดสปริงวาล์วแบบตัว C (C-Clamp) มาพร้อมอแดปเตอร์โลหะ สำหรับวาล์วเครื่องยนต์",
+        "score": 10,
+        "checked": true
+      },
+      {
+        "filename": "90890-01274.jpg",
+        "name": "Crankshaft Installer Pot",
+        "category": "Engine Tools",
+        "description": "ชุดกระบอกดันเพลาข้อเหวี่ยงเข้าแคร้ง (Crankshaft Installer) พร้อมน็อตและบูชรอง สำหรับประกอบเครื่องยนต์",
+        "score": 8,
+        "checked": false
+      },
+      {
+        "filename": "90843-12007.png",
+        "name": "90843-12007.png",
+        "category": "General",
+        "description": "-",
+        "score": 8,
+        "checked": false
+      },
+      {
+        "filename": "90843-110A8.jpg",
+        "name": "Internal Bearing Puller Set",
+        "category": "Bearing Tools",
+        "description": "ชุดดูดลูกปืนรูใน (Internal Bearing Puller) พร้อมหัวจับ Collet หลายขนาด (8-30mm) และขายันดูด",
+        "score": 8,
+        "checked": false
+      }
+    ]
+  },
+  {
+    "job_id": "JOB-20261007-1510",
+    "source_type": "tray",
+    "tray_name": "มมมม",
+    "timestamp": "2026-10-07 15:10:24",
+    "date": "07/10/2026",
+    "time": "15:10",
+    "inspector": "สมร",
+    "bay": "Bay 01 (ช็อปเครื่องกล)",
+    "note": "",
+    "total_items": 4,
+    "checked_items": 4,
+    "is_complete": true,
+    "status": "เครื่องมือครบถ้วน (Complete)",
+    "items": [
+      {
+        "filename": "90843-08F48.jpg",
+        "name": "Bearing Installer Set",
+        "category": "Engine Tools",
+        "description": "เครื่องมือในถาด 'มมมม' (พิกัดช่อง)",
+        "score": 100,
+        "checked": true
+      },
+      {
+        "filename": "90843-08F63.jpg",
+        "name": "KTC Impact Driver Set",
+        "category": "Hand Tools",
+        "description": "เครื่องมือในถาด 'มมมม' (พิกัดช่อง)",
+        "score": 100,
+        "checked": true
+      },
+      {
+        "filename": "90843-08F33.jpg",
+        "name": "Mitutoyo Vernier Caliper",
+        "category": "Measuring Tools",
+        "description": "เครื่องมือในถาด 'มมมม' (พิกัดช่อง)",
+        "score": 100,
+        "checked": true
+      },
+      {
+        "filename": "90890-01135.jpg",
+        "name": "Crankcase Separator (Yamaha Type)",
+        "category": "Engine Tools",
+        "description": "เครื่องมือในถาด 'มมมม' (พิกัดช่อง)",
+        "score": 100,
+        "checked": true
+      }
+    ]
+  },
+  {
+    "job_id": "JOB-20261007-1421",
+    "source_type": "tray",
+    "tray_name": "xxxx",
+    "timestamp": "2026-10-07 14:21:28",
+    "date": "07/10/2026",
+    "time": "14:21",
+    "inspector": "สมศรี",
+    "bay": "Bay 01 (ช็อปเครื่องกล)",
+    "note": "",
+    "total_items": 3,
+    "checked_items": 3,
+    "is_complete": true,
+    "status": "เครื่องมือครบถ้วน (Complete)",
+    "items": [
+      {
+        "filename": "90843-08F48.jpg",
+        "name": "Bearing Installer Set",
+        "category": "Engine Tools",
+        "description": "เครื่องมือในถาด 'xxxx' (พิกัดช่อง)",
+        "score": 100,
+        "checked": true
+      },
+      {
+        "filename": "90843-12007.png",
+        "name": "90843-12007.png",
+        "category": "Unknown",
+        "description": "เครื่องมือในถาด 'xxxx' (พิกัดช่อง)",
+        "score": 100,
+        "checked": true
+      },
+      {
+        "filename": "90843-08F33.jpg",
+        "name": "Mitutoyo Vernier Caliper",
+        "category": "Measuring Tools",
+        "description": "เครื่องมือในถาด 'xxxx' (พิกัดช่อง)",
+        "score": 100,
+        "checked": true
+      }
+    ]
+  },
+  {
+    "job_id": "JOB-20261007-1402",
+    "timestamp": "2026-10-07 14:02:20",
+    "date": "07/10/2026",
+    "time": "14:02",
+    "inspector": "สมชาติ",
+    "bay": "Bay 01 (ช็อปเครื่องกล)",
+    "note": "",
+    "total_items": 3,
+    "checked_items": 3,
+    "is_complete": true,
+    "status": "ครบถ้วน (Passed)",
+    "items": [
+      {
+        "filename": "90843-08F48.jpg",
+        "name": "Bearing Installer Set",
+        "category": "Engine Tools",
+        "description": "เครื่องมือในถาด 'Yamaha' (พิกัดช่อง)",
+        "score": 100,
+        "checked": true
+      },
+      {
+        "filename": "90843-12007.png",
+        "name": "90843-12007.png",
+        "category": "Unknown",
+        "description": "เครื่องมือในถาด 'Yamaha' (พิกัดช่อง)",
+        "score": 100,
+        "checked": true
+      },
+      {
+        "filename": "90843-08F33.jpg",
+        "name": "Mitutoyo Vernier Caliper",
+        "category": "Measuring Tools",
+        "description": "เครื่องมือในถาด 'Yamaha' (พิกัดช่อง)",
+        "score": 100,
+        "checked": true
+      }
+    ]
+  },
+  {
+    "job_id": "JOB-20261007-1332",
+    "timestamp": "2026-10-07 13:32:42",
+    "date": "07/10/2026",
+    "time": "13:32",
+    "inspector": "สสสสส",
+    "bay": "Bay 01 (ช็อปเครื่องกล)",
+    "note": "",
+    "total_items": 11,
+    "checked_items": 4,
+    "is_complete": false,
+    "status": "ไม่ครบ (Incomplete)",
+    "items": [
+      {
+        "filename": "90843-08H03.jpg",
+        "name": "Crankcase Separator Tool",
+        "category": "Engine Tools",
+        "description": "เครื่องมือดูดแยกแคร้งเครื่องยนต์ (Crankcase Separator) ชุดใหญ่ พร้อมน็อตดันเพลาข้อเหวี่ยง 3 ขนาด",
+        "score": 2416,
+        "checked": true
+      },
+      {
+        "filename": "90843-08E16.jpg",
+        "name": "Valve Spring Compressor (C-Clamp)",
+        "category": "Engine Tools",
+        "description": "ชุดกดสปริงวาล์วแบบตัว C (C-Clamp) มาพร้อมอแดปเตอร์โลหะ สำหรับวาล์วเครื่องยนต์",
+        "score": 38,
+        "checked": true
+      },
+      {
+        "filename": "90843-110D1.png",
+        "name": "90843-110D1.png",
+        "category": "General",
+        "description": "-",
+        "score": 17,
+        "checked": false
+      },
+      {
+        "filename": "90890-01274.jpg",
+        "name": "Crankshaft Installer Pot",
+        "category": "Engine Tools",
+        "description": "ชุดกระบอกดันเพลาข้อเหวี่ยงเข้าแคร้ง (Crankshaft Installer) พร้อมน็อตและบูชรอง สำหรับประกอบเครื่องยนต์",
+        "score": 11,
+        "checked": false
+      },
+      {
+        "filename": "90843-110A7.jpg",
+        "name": "L-Shaped Handle Guide",
+        "category": "Accessories",
+        "description": "ด้ามขันหรือท่อแกนเหล็กดัดโค้งรูปตัว L (Handle Guide) สำหรับใช้เป็นด้ามต่อหรือประคองเครื่องมือ",
+        "score": 11,
+        "checked": false
+      },
+      {
+        "filename": "90843-08F87.jpg",
+        "name": "Hex Bit Socket Set",
+        "category": "Socket Tools",
+        "description": "ชุดลูกบล็อกเดือยโผล่หกเหลี่ยมและหัวแฉก (Hex/Phillips Bit Socket) บนรางเก็บ สำหรับใช้งานกับด้ามฟรี",
+        "score": 10,
+        "checked": false
+      },
+      {
+        "filename": "90843-110C3.png",
+        "name": "90843-110C3.png",
+        "category": "General",
+        "description": "-",
+        "score": 9,
+        "checked": true
+      },
+      {
+        "filename": "90843-08F22.jpg",
+        "name": "Chain Breaker Tool",
+        "category": "Maintenance Tools",
+        "description": "เครื่องมือตัดโซ่และย้ำโซ่จักรยานยนต์ ขนาดพกพา ใช้งานง่ายพร้อมด้ามจับ",
+        "score": 8,
+        "checked": true
+      },
+      {
+        "filename": "90843-08F63.jpg",
+        "name": "KTC Impact Driver Set",
+        "category": "Hand Tools",
+        "description": "ชุดไขควงตอกกระแทก KTC มาพร้อมดอกไขควงหลายขนาดและกล่องเหล็กสีแดง สำหรับถอดน็อตที่แน่นหรือเป็นสนิม",
+        "score": 8,
+        "checked": false
+      },
+      {
+        "filename": "90843-08H02.jpg",
+        "name": "Flywheel Puller (Standard)",
+        "category": "Engine Tools",
+        "description": "เกลียวดูดล้อแม่เหล็ก (Flywheel Puller) แบบมาตรฐานพร้อมแกนกระทุ้ง สำหรับถอดจานไฟรถจักรยานยนต์",
+        "score": 8,
+        "checked": false
+      },
+      {
+        "filename": "90843-08E11.jpg",
+        "name": "Flywheel Puller Bolt",
+        "category": "Engine Tools",
+        "description": "เกลียวดูดล้อแม่เหล็ก (Flywheel Puller) พร้อมหัวจับขนาดใหญ่ลายกันลื่น",
+        "score": 8,
+        "checked": false
+      }
+    ]
+  },
+  {
+    "job_id": "JOB-20261007-1159",
+    "timestamp": "2026-10-07 11:59:29",
+    "date": "07/10/2026",
+    "time": "11:59",
+    "inspector": "สมปอง",
+    "bay": "Bay 01 (ช็อปเครื่องกล)",
+    "note": "",
+    "total_items": 11,
+    "checked_items": 5,
+    "is_complete": false,
+    "status": "ไม่ครบ (Incomplete)",
+    "items": [
+      {
+        "filename": "90843-08H03.jpg",
+        "name": "Crankcase Separator Tool",
+        "category": "Engine Tools",
+        "description": "เครื่องมือดูดแยกแคร้งเครื่องยนต์ (Crankcase Separator) ชุดใหญ่ พร้อมน็อตดันเพลาข้อเหวี่ยง 3 ขนาด",
+        "score": 2416,
+        "checked": true
+      },
+      {
+        "filename": "90843-08E16.jpg",
+        "name": "Valve Spring Compressor (C-Clamp)",
+        "category": "Engine Tools",
+        "description": "ชุดกดสปริงวาล์วแบบตัว C (C-Clamp) มาพร้อมอแดปเตอร์โลหะ สำหรับวาล์วเครื่องยนต์",
+        "score": 38,
+        "checked": true
+      },
+      {
+        "filename": "90843-110D1.png",
+        "name": "90843-110D1.png",
+        "category": "General",
+        "description": "-",
+        "score": 17,
+        "checked": true
+      },
+      {
+        "filename": "90890-01274.jpg",
+        "name": "Crankshaft Installer Pot",
+        "category": "Engine Tools",
+        "description": "ชุดกระบอกดันเพลาข้อเหวี่ยงเข้าแคร้ง (Crankshaft Installer) พร้อมน็อตและบูชรอง สำหรับประกอบเครื่องยนต์",
+        "score": 11,
+        "checked": true
+      },
+      {
+        "filename": "90843-110A7.jpg",
+        "name": "L-Shaped Handle Guide",
+        "category": "Accessories",
+        "description": "ด้ามขันหรือท่อแกนเหล็กดัดโค้งรูปตัว L (Handle Guide) สำหรับใช้เป็นด้ามต่อหรือประคองเครื่องมือ",
+        "score": 11,
+        "checked": true
+      },
+      {
+        "filename": "90843-08F87.jpg",
+        "name": "Hex Bit Socket Set",
+        "category": "Socket Tools",
+        "description": "ชุดลูกบล็อกเดือยโผล่หกเหลี่ยมและหัวแฉก (Hex/Phillips Bit Socket) บนรางเก็บ สำหรับใช้งานกับด้ามฟรี",
+        "score": 10,
+        "checked": false
+      },
+      {
+        "filename": "90843-110C3.png",
+        "name": "90843-110C3.png",
+        "category": "General",
+        "description": "-",
+        "score": 9,
+        "checked": false
+      },
+      {
+        "filename": "90843-08F22.jpg",
+        "name": "Chain Breaker Tool",
+        "category": "Maintenance Tools",
+        "description": "เครื่องมือตัดโซ่และย้ำโซ่จักรยานยนต์ ขนาดพกพา ใช้งานง่ายพร้อมด้ามจับ",
+        "score": 8,
+        "checked": false
+      },
+      {
+        "filename": "90843-08F63.jpg",
+        "name": "KTC Impact Driver Set",
+        "category": "Hand Tools",
+        "description": "ชุดไขควงตอกกระแทก KTC มาพร้อมดอกไขควงหลายขนาดและกล่องเหล็กสีแดง สำหรับถอดน็อตที่แน่นหรือเป็นสนิม",
+        "score": 8,
+        "checked": false
+      },
+      {
+        "filename": "90843-08H02.jpg",
+        "name": "Flywheel Puller (Standard)",
+        "category": "Engine Tools",
+        "description": "เกลียวดูดล้อแม่เหล็ก (Flywheel Puller) แบบมาตรฐานพร้อมแกนกระทุ้ง สำหรับถอดจานไฟรถจักรยานยนต์",
+        "score": 8,
+        "checked": false
+      },
+      {
+        "filename": "90843-08E11.jpg",
+        "name": "Flywheel Puller Bolt",
+        "category": "Engine Tools",
+        "description": "เกลียวดูดล้อแม่เหล็ก (Flywheel Puller) พร้อมหัวจับขนาดใหญ่ลายกันลื่น",
+        "score": 8,
+        "checked": false
+      }
+    ]
+  },
+  {
+    "job_id": "JOB-20261007-1118",
+    "timestamp": "2026-10-07 11:18:40",
+    "date": "07/10/2026",
+    "time": "11:18",
+    "inspector": "คุณชาย",
+    "bay": "Bay 01 (ช็อปเครื่องกล)",
+    "note": "",
+    "total_items": 7,
+    "checked_items": 3,
+    "is_complete": false,
+    "status": "ไม่ครบ (Incomplete)",
+    "items": [
+      {
+        "filename": "90843-08F53.jpg",
+        "name": "KTC Adjustable Wrench (300mm)",
+        "category": "Hand Tools",
+        "description": "ประแจเลื่อน KTC ขนาด 300 มม. (MW-300) ผลิตจากเหล็กคุณภาพสูง แข็งแรงทนทาน",
+        "score": 3775,
+        "checked": true
+      },
+      {
+        "filename": "90843-08F48.jpg",
+        "name": "Bearing Installer Set",
+        "category": "Engine Tools",
+        "description": "ชุดตอกลูกปืนหรือซีล (Bearing/Seal Driver) ประกอบด้วยแกนเกลียวและปลอกโลหะรมดำ",
+        "score": 20,
+        "checked": false
+      },
+      {
+        "filename": "90843-08E16.jpg",
+        "name": "Valve Spring Compressor (C-Clamp)",
+        "category": "Engine Tools",
+        "description": "ชุดกดสปริงวาล์วแบบตัว C (C-Clamp) มาพร้อมอแดปเตอร์โลหะ สำหรับวาล์วเครื่องยนต์",
+        "score": 14,
+        "checked": false
+      },
+      {
+        "filename": "90843-08E10.jpg",
+        "name": "Valve Spring Compressor (Pliers Type)",
+        "category": "Engine Tools",
+        "description": "คีมกดสปริงวาล์วแบบปากปรับขยายได้ ใช้สำหรับงานซ่อมเครื่องยนต์ขนาดเล็ก",
+        "score": 13,
+        "checked": true
+      },
+      {
+        "filename": "90890-01135.jpg",
+        "name": "Crankcase Separator (Yamaha Type)",
+        "category": "Engine Tools",
+        "description": "เครื่องมือแยกแคร้งเครื่องยนต์แบบมาตรฐาน Yamaha สำหรับผ่าเครื่องเพื่อซ่อมบำรุงภายใน",
+        "score": 12,
+        "checked": true
+      },
+      {
+        "filename": "90843-08H03.jpg",
+        "name": "Crankcase Separator Tool",
+        "category": "Engine Tools",
+        "description": "เครื่องมือดูดแยกแคร้งเครื่องยนต์ (Crankcase Separator) ชุดใหญ่ พร้อมน็อตดันเพลาข้อเหวี่ยง 3 ขนาด",
+        "score": 11,
+        "checked": false
+      },
+      {
+        "filename": "90843-110L3.png",
+        "name": "90843-110L3.png",
+        "category": "General",
+        "description": "-",
+        "score": 8,
+        "checked": false
+      }
+    ]
+  },
+  {
+    "job_id": "JOB-20261007-1116",
+    "timestamp": "2026-10-07 11:16:08",
+    "date": "07/10/2026",
+    "time": "11:16",
+    "inspector": "สมหมาย",
+    "bay": "Bay 01 (ช็อปเครื่องกล)",
+    "note": "",
+    "total_items": 8,
+    "checked_items": 2,
+    "is_complete": false,
+    "status": "ไม่ครบ (Incomplete)",
+    "items": [
+      {
+        "filename": "90843-08E10.jpg",
+        "name": "Valve Spring Compressor (Pliers Type)",
+        "category": "Engine Tools",
+        "description": "คีมกดสปริงวาล์วแบบปากปรับขยายได้ ใช้สำหรับงานซ่อมเครื่องยนต์ขนาดเล็ก",
+        "score": 4084,
+        "checked": true
+      },
+      {
+        "filename": "90843-08E16.jpg",
+        "name": "Valve Spring Compressor (C-Clamp)",
+        "category": "Engine Tools",
+        "description": "ชุดกดสปริงวาล์วแบบตัว C (C-Clamp) มาพร้อมอแดปเตอร์โลหะ สำหรับวาล์วเครื่องยนต์",
+        "score": 40,
+        "checked": true
+      },
+      {
+        "filename": "90843-08F33.jpg",
+        "name": "Mitutoyo Vernier Caliper",
+        "category": "Measuring Tools",
+        "description": "เวอร์เนียร์คาลิปเปอร์แบรนด์ Mitutoyo ความละเอียดสูง พร้อมกล่องบรรจุภัณฑ์สีส้ม",
+        "score": 17,
+        "checked": false
+      },
+      {
+        "filename": "90843-11099.jpg",
+        "name": "Rotor Holding Tool",
+        "category": "Engine Tools",
+        "description": "เครื่องมือจับจานไฟหรือโรเตอร์ (Rotor Holder) เพื่อขันน็อตล็อคให้แน่น ป้องกันการหมุนตาม",
+        "score": 11,
+        "checked": false
+      },
+      {
+        "filename": "90843-110L3.png",
+        "name": "90843-110L3.png",
+        "category": "General",
+        "description": "-",
+        "score": 10,
+        "checked": false
+      },
+      {
+        "filename": "90843-08H03.jpg",
+        "name": "Crankcase Separator Tool",
+        "category": "Engine Tools",
+        "description": "เครื่องมือดูดแยกแคร้งเครื่องยนต์ (Crankcase Separator) ชุดใหญ่ พร้อมน็อตดันเพลาข้อเหวี่ยง 3 ขนาด",
+        "score": 9,
+        "checked": false
+      },
+      {
+        "filename": "90843-110A7.jpg",
+        "name": "L-Shaped Handle Guide",
+        "category": "Accessories",
+        "description": "ด้ามขันหรือท่อแกนเหล็กดัดโค้งรูปตัว L (Handle Guide) สำหรับใช้เป็นด้ามต่อหรือประคองเครื่องมือ",
+        "score": 8,
+        "checked": false
+      },
+      {
+        "filename": "90843-110C3.png",
+        "name": "90843-110C3.png",
+        "category": "General",
+        "description": "-",
+        "score": 8,
+        "checked": false
+      }
+    ]
+  }
+]
