@@ -602,8 +602,29 @@ class ShapeScanner:
         with open(out_path, 'w', encoding='utf-8') as f:
             json.dump(tray_data, f, ensure_ascii=False, indent=2)
 
-        print(f"\u2705 บันทึก Template ถาด '{tray_name}': {len(all_results)} รายการ -> {out_path}")
+        # บันทึกภาพถ่ายแม่แบบถาดสำหรับใช้พรีวิว
+        img_out_path = os.path.join(template_dir, f"{tray_id}.jpg")
+        try:
+            cv2.imwrite(img_out_path, scene_img)
+        except Exception:
+            pass
+
+        print(f"✅ บันทึก Template ถาด '{tray_name}': {len(all_results)} รายการ -> {out_path}")
         return tray_data
+
+    def get_tray_template(self, tray_id):
+        """ดึงข้อมูล Template ถาดพร้อม path รูปภาพแม่แบบ"""
+        template_path = os.path.join(self.db_folder, 'tray_templates', f"{tray_id}.json")
+        if not os.path.exists(template_path):
+            return None
+        try:
+            with open(template_path, 'r', encoding='utf-8') as f:
+                tray_data = json.load(f)
+            img_path = os.path.join(self.db_folder, 'tray_templates', f"{tray_id}.jpg")
+            tray_data['image_path'] = img_path if os.path.exists(img_path) else None
+            return tray_data
+        except Exception:
+            return None
 
     def check_tray_slots(self, scene_img, tray_id, brightness_threshold_pct=18):
         """
@@ -687,9 +708,16 @@ class ShapeScanner:
         return sorted(templates, key=lambda x: x['tray_name'])
 
     def delete_tray_template(self, tray_id):
-        """ลบ Template ถาด"""
-        path = os.path.join(self.db_folder, 'tray_templates', f"{tray_id}.json")
-        if os.path.exists(path):
-            os.remove(path)
-            return True
-        return False
+        """ลบ Template ถาดและรูปภาพประกอบ"""
+        json_path = os.path.join(self.db_folder, 'tray_templates', f"{tray_id}.json")
+        img_path = os.path.join(self.db_folder, 'tray_templates', f"{tray_id}.jpg")
+        deleted = False
+        if os.path.exists(json_path):
+            os.remove(json_path)
+            deleted = True
+        if os.path.exists(img_path):
+            try:
+                os.remove(img_path)
+            except Exception:
+                pass
+        return deleted

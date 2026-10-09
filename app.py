@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import cv2
 import numpy as np
 import json
@@ -6,6 +7,7 @@ import os
 import time
 import csv
 import io
+import base64
 from datetime import datetime, timedelta
 from scanner_module import ShapeScanner
 
@@ -459,6 +461,34 @@ def save_handover_record(job_id, inspector_name, bay, note, items, is_complete, 
     return record
 
 
+def mark_tool_as_found(job_id, item_index):
+    """อัปเดตสถานะเครื่องมือที่ขาดว่าพบแล้วย้อนหลังในประวัติการส่งมอบ"""
+    history = load_handover_history()
+    for rec in history:
+        if rec.get('job_id') == job_id:
+            items = rec.get('items', [])
+            if 0 <= item_index < len(items):
+                items[item_index]['checked'] = True
+                items[item_index]['resolved_at'] = datetime.now().strftime("%d/%m/%Y %H:%M น.")
+                
+                # คำนวณจำนวนชิ้นที่ตรวจพบใหม่
+                rec['checked_items'] = sum(1 for x in items if x.get('checked', False))
+                if rec['checked_items'] == rec.get('total_items', len(items)):
+                    rec['is_complete'] = True
+                    if rec.get('source_type') == 'tray':
+                        rec['status'] = "เครื่องมือครบถ้วน (Complete - พบย้อนหลัง)"
+                    else:
+                        rec['status'] = f"บันทึกตรวจนับครบถ้วน ({rec['total_items']} ชิ้น)"
+                
+                if not os.path.exists('mock_database'):
+                    os.makedirs('mock_database')
+                with open(HISTORY_FILE, 'w', encoding='utf-8') as f:
+                    json.dump(history, f, ensure_ascii=False, indent=2)
+                
+                st.session_state['history_updated_msg'] = f"อัปเดตสถานะ '{items[item_index].get('name')}' ในงาน {job_id} เป็น 'พบแล้ว' เรียบร้อย"
+                break
+
+
 def keep_only_checked_items():
     """รักษาเฉพาะรายการที่ถูกติ๊กถูกไว้เมื่อมีการถ่ายรูป/เปลี่ยนภาพใหม่"""
     kept_items = [item for item in st.session_state.detected_list if item.get('checked', False)]
@@ -535,6 +565,62 @@ st.markdown(f"""
     </div>
 </div>
 """, unsafe_allow_html=True)
+
+# ==============================================================================
+# 🚨 DIALOG: QUICK RESOLVE PENDING INCOMPLETE JOBS (เคลียร์งานค้างด่วน)
+# ==============================================================================
+@st.dialog("🚨 รายการงานที่ยังตามหาเครื่องมือไม่ครบ (Pending Incomplete Jobs)", width="large")
+def quick_resolve_dialog():
+    history = load_handover_history()
+    unresolved = [h for h in history if not h.get('is_complete', False)]
+
+    if not unresolved:
+        st.success("🎉 ยอดเยี่ยม! เครื่องมือครบถ้วนทุกงานแล้ว ไม่มีงานค้างในระบบ")
+        return
+
+    st.markdown(f"""<div style="background-color: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; padding: 12px; margin-bottom: 14px;">
+<strong style="color: #991B1B; font-size: 0.95rem;">⚠️ มีงานที่เครื่องมือยังไม่ครบทั้งหมด {len(unresolved)} รายการ:</strong>
+<p style="color: #7F1D1D; font-size: 0.84rem; margin: 4px 0 0 0;">
+กดปุ่ม <b>'✅ บันทึกว่าพบแล้ว'</b> ด้านหลังเครื่องมือที่ตามหาเจอแล้ว เพื่ออัปเดตสถานะและเคลียร์งานค้างได้ทันทีโดยไม่ต้องไปค้นหา
+</p>
+</div>""", unsafe_allow_html=True)
+
+    for job in unresolved:
+        missing_items = [(idx, itm) for idx, itm in enumerate(job.get('items', [])) if not itm.get('checked', False)]
+        with st.container(border=True):
+            st.markdown(f"""<div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #E2E8F0; padding-bottom: 6px; margin-bottom: 8px;">
+<div>
+<strong style="font-size: 1rem; color: #0F172A;">🏷️ {job['job_id']}</strong>
+<span style="font-size: 0.82rem; color: #64748B; margin-left: 8px;">ช่าง: <b>{job['inspector']}</b> | แผนก: <b>{job.get('bay', '-')}</b> | วันที่: {job['date']} {job['time']} น.</span>
+</div>
+<span style="background-color: #FEF2F2; color: #DC2626; border: 1px solid #FECACA; font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 6px;">
+ขาด {len(missing_items)} ชิ้น (ตรวจพบ {job.get('checked_items', 0)}/{job.get('total_items', 0)})
+</span>
+</div>""", unsafe_allow_html=True)
+
+            for itm_idx, itm in missing_items:
+                fn = itm.get('filename', '')
+                c_m1, c_m2, c_m3 = st.columns([0.12, 0.60, 0.28])
+                with c_m1:
+                    if fn and os.path.exists(f"mock_database/{fn}"):
+                        try:
+                            st.image(f"mock_database/{fn}", width=44)
+                        except:
+                            st.write("🔧")
+                    else:
+                        st.write("🔧")
+                with c_m2:
+                    st.markdown(f"""<div style="font-weight: 700; font-size: 0.88rem; color: #DC2626;">❌ {itm.get('name', fn)}</div>
+<div style="font-size: 0.76rem; color: #64748B;"><span class='badge-category' style='font-size: 0.68rem;'>{itm.get('category', 'General')}</span> {itm.get('description', '')}</div>""", unsafe_allow_html=True)
+                with c_m3:
+                    st.button(
+                        "✅ บันทึกว่าพบแล้ว",
+                        key=f"btn_quick_found_{job['job_id']}_{itm_idx}",
+                        on_click=mark_tool_as_found,
+                        args=(job['job_id'], itm_idx),
+                        use_container_width=True
+                    )
+                st.markdown("<div style='border-bottom: 1px dashed #F1F5F9; margin: 3px 0;'></div>", unsafe_allow_html=True)
 
 
 # ==============================================================================
@@ -996,13 +1082,256 @@ def render_checklist():
                                 st.rerun()
 
 
+@st.cache_data
+def get_image_base64(filepath):
+    """แปลงรูปภาพเครื่องมือเป็น Base64 Data URI เพื่อให้พิมพ์และแสดงผลได้คมชัด 100% (Cached)"""
+    if filepath and os.path.exists(filepath):
+        try:
+            with open(filepath, "rb") as img_f:
+                encoded = base64.b64encode(img_f.read()).decode('ascii')
+                ext = filepath.split('.')[-1].lower()
+                mime = "image/png" if ext == "png" else "image/jpeg"
+                return f"data:{mime};base64,{encoded}"
+        except Exception:
+            return ""
+    return ""
+
+
+def generate_printable_html(rec):
+    """สร้างเนื้อหาเอกสาร HTML สำหรับพิมพ์ขนาด A4 เต็มหน้า อย่างเป็นทางการ ไร้พื้นหลังเว็บปน"""
+    is_p = rec.get('is_complete', False)
+    status_bg = "#ECFDF5" if is_p else "#FEF2F2"
+    status_col = "#059669" if is_p else "#DC2626"
+    status_bdr = "#A7F3D0" if is_p else "#FECACA"
+    status_txt = "✅ ครบถ้วนสมบูรณ์ (PASSED)" if is_p else "⚠️ เครื่องมือไม่ครบถ้วน (INCOMPLETE)"
+
+    rows_html = ""
+    for idx, itm in enumerate(rec.get('items', []), 1):
+        fn = itm.get('filename', '')
+        img_b64 = get_image_base64(f"mock_database/{fn}") if fn else ""
+        img_tag = f'<img src="{img_b64}" style="width: 40px; height: 40px; object-fit: contain; border-radius: 4px; border: 1px solid #E2E8F0;">' if img_b64 else '<span style="font-size: 20px;">🔧</span>'
+
+        is_chk = itm.get('checked', False)
+        status_cell = f'<span style="color: #059669; font-weight: bold;">✅ ผ่าน (ครบ)</span>' if is_chk else f'<span style="color: #DC2626; font-weight: bold;">❌ ไม่พบ</span>'
+        if itm.get('resolved_at'):
+            status_cell += f'<div style="color: #059669; font-size: 10.5px; margin-top: 2px;">(พบย้อนหลังเมื่อ {itm["resolved_at"]})</div>'
+
+        rows_html += f"""
+        <tr style="border-bottom: 1px solid #E2E8F0;">
+            <td style="padding: 6px 8px; text-align: center; font-weight: bold; color: #64748B;">{idx}</td>
+            <td style="padding: 6px 8px; text-align: center;">{img_tag}</td>
+            <td style="padding: 6px 8px; font-weight: bold; color: #0F172A;">
+                {itm.get('name', fn)}
+                <div style="font-size: 11px; color: #64748B; font-weight: normal;">{itm.get('description', '')}</div>
+            </td>
+            <td style="padding: 6px 8px; font-size: 11.5px; color: #475569;">{itm.get('category', 'General')}</td>
+            <td style="padding: 6px 8px; text-align: center; font-size: 11.5px; color: #E81D23; font-weight: bold;">★ {itm.get('score', 100)}</td>
+            <td style="padding: 6px 8px; text-align: right;">{status_cell}</td>
+        </tr>
+        """
+
+    note_text = rec.get('note') or '-'
+
+    html_content = f"""<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <title>ใบส่งมอบงาน - {rec['job_id']}</title>
+    <style>
+        @page {{
+            size: A4 portrait;
+            margin: 12mm 15mm;
+        }}
+        * {{
+            box-sizing: border-box;
+        }}
+        body {{
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #0F172A;
+            background: #FFFFFF;
+            margin: 0;
+            padding: 20px 24px;
+            font-size: 12.5px;
+            line-height: 1.4;
+        }}
+        .header-box {{
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 2.5px solid #0F172A;
+            padding-bottom: 12px;
+            margin-bottom: 14px;
+        }}
+        .title-main {{
+            font-size: 19px;
+            font-weight: 800;
+            color: #0F172A;
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }}
+        .title-sub {{
+            font-size: 11.5px;
+            color: #64748B;
+            margin-top: 2px;
+            font-weight: 600;
+        }}
+        .status-badge {{
+            background-color: {status_bg};
+            color: {status_col};
+            border: 1.5px solid {status_bdr};
+            padding: 5px 12px;
+            border-radius: 6px;
+            font-weight: 800;
+            font-size: 12px;
+            display: inline-block;
+        }}
+        .info-grid {{
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            background-color: #F8FAFC;
+            border: 1px solid #E2E8F0;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 16px;
+        }}
+        .info-item b {{
+            color: #64748B;
+            font-size: 10.5px;
+            text-transform: uppercase;
+            display: block;
+            margin-bottom: 2px;
+        }}
+        .info-item span {{
+            font-size: 13px;
+            font-weight: 700;
+            color: #0F172A;
+        }}
+        table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }}
+        th {{
+            background-color: #0F172A;
+            color: #FFFFFF;
+            padding: 7px 8px;
+            font-size: 11.5px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }}
+        .signature-section {{
+            margin-top: 28px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            text-align: center;
+        }}
+        .sig-line {{
+            height: 40px;
+            border-bottom: 1.5px dashed #94A3B8;
+            margin-bottom: 6px;
+        }}
+        .footer-note {{
+            margin-top: 24px;
+            font-size: 10px;
+            color: #94A3B8;
+            text-align: center;
+            border-top: 1px solid #F1F5F9;
+            padding-top: 6px;
+        }}
+        @media print {{
+            body {{
+                padding: 0;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }}
+        }}
+    </style>
+</head>
+<body>
+    <div class="header-box">
+        <div>
+            <div class="title-main">🔧 ใบส่งมอบและตรวจสอบเครื่องมือ</div>
+            <div class="title-sub">TOOL SCANNER & HANDOVER AUDIT REPORT</div>
+        </div>
+        <div>
+            <div class="status-badge">{status_txt}</div>
+        </div>
+    </div>
+
+    <div class="info-grid">
+        <div class="info-item">
+            <b>🏷️ รหัสงาน (Job ID)</b>
+            <span style="color: #E81D23;">{rec['job_id']}</span>
+        </div>
+        <div class="info-item">
+            <b>📅 วันที่ - เวลา</b>
+            <span>{rec['date']} {rec['time']} น.</span>
+        </div>
+        <div class="info-item">
+            <b>👤 ช่างผู้รับผิดชอบ</b>
+            <span>{rec['inspector']}</span>
+        </div>
+        <div class="info-item">
+            <b>🏢 แผนก / โซน (Bay)</b>
+            <span>{rec.get('bay', '-')}</span>
+        </div>
+        <div class="info-item">
+            <b>🔧 สรุปจำนวนเครื่องมือ</b>
+            <span>ตรวจครบ {rec.get('checked_items', 0)} / {rec.get('total_items', 0)} ชิ้น</span>
+        </div>
+        <div class="info-item">
+            <b>📝 หมายเหตุ</b>
+            <span style="font-weight: normal;">{note_text}</span>
+        </div>
+    </div>
+
+    <table border="0">
+        <thead>
+            <tr>
+                <th style="width: 35px; text-align: center;">#</th>
+                <th style="width: 55px; text-align: center;">รูปภาพ</th>
+                <th style="text-align: left;">ชื่อเครื่องมือ (Tool Name)</th>
+                <th style="width: 110px; text-align: left;">หมวดหมู่</th>
+                <th style="width: 60px; text-align: center;">คะแนน</th>
+                <th style="width: 130px; text-align: right;">สถานะตรวจนับ</th>
+            </tr>
+        </thead>
+        <tbody>
+            {rows_html}
+        </tbody>
+    </table>
+
+    <div class="signature-section">
+        <div>
+            <div class="sig-line"></div>
+            <div style="font-size: 11.5px; font-weight: bold; color: #1E293B;">ลงชื่อ .............................................................. (ผู้ส่งมอบงาน)</div>
+            <div style="font-size: 10.5px; color: #64748B;">ช่างผู้ตรวจรับผิดชอบ / Inspector</div>
+        </div>
+        <div>
+            <div class="sig-line"></div>
+            <div style="font-size: 11.5px; font-weight: bold; color: #1E293B;">ลงชื่อ .............................................................. (ผู้ตรวจรับงาน)</div>
+            <div style="font-size: 10.5px; color: #64748B;">หัวหน้าแผนก / Supervisor</div>
+        </div>
+    </div>
+
+    <div class="footer-note">
+        เอกสารนี้ออกโดยระบบ AI Tool Scanner & Handover System | วันที่พิมพ์: {datetime.now().strftime('%d/%m/%Y %H:%M น.')}
+    </div>
+</body>
+</html>"""
+    return html_content
+
+
 # ==============================================================================
 # 📜 8. VIEW 4: HANDOVER HISTORY & AUDIT LOG (หน้าประวัติการส่งมอบ)
 # ------------------------------------------------------------------------------
 # [ลักษณะหน้าตา UI]:
 # - แถบสถิติประวัติ: จำนวนงานที่ส่งมอบแล้ว, อัตราผ่าน (Pass Rate), รวมชิ้นที่ตรวจ
 # - ช่องค้นหาประวัติตาม Job ID หรือชื่อช่าง
-# - รายการการ์ดประวัติแต่ละใบ พร้อมปุ่มดาวน์โหลด CSV และดูรายละเอียดเครื่องมือ
+# - รายการการ์ดประวัติแต่ละใบ พร้อมปุ่มดาวน์โหลด CSV, พิมพ์เอกสาร และดูรายละเอียด
 # ==============================================================================
 def render_history():
     history = load_handover_history()
@@ -1017,6 +1346,10 @@ def render_history():
     if st.session_state.last_handover_success:
         rec = st.session_state.last_handover_success
         st.success(f"🎉 บันทึกการส่งมอบงานรหัส **{rec['job_id']}** สำเร็จเรียบร้อย!")
+
+    if 'history_updated_msg' in st.session_state and st.session_state.history_updated_msg:
+        st.success(f"🎉 {st.session_state.history_updated_msg}")
+        del st.session_state['history_updated_msg']
 
     if not history:
         st.info("💡 ยังไม่มีประวัติการส่งมอบงานในระบบ เมื่อตรวจเช็คลิสต์เสร็จให้กดปุ่ม 'บันทึกและส่งมอบงาน'")
@@ -1060,17 +1393,59 @@ def render_history():
                 pass
         return datetime.now()
 
-    # ช่องค้นหา, ปุ่มรีเซ็ต และปุ่ม Export
+    incomplete_count = sum(1 for h in history if not h.get('is_complete', False))
+    complete_count = sum(1 for h in history if h.get('is_complete', False))
+
+    def reset_all_filters():
+        st.session_state.hist_search_input = ""
+        st.session_state.hist_date_pills = "🌐 ทั้งหมด (All Time)"
+        st.session_state.hist_status_filter = "🌐 งานทั้งหมด"
+        if 'hist_status_pills' in st.session_state:
+            del st.session_state['hist_status_pills']
+        if 'hist_start_date' in st.session_state:
+            del st.session_state['hist_start_date']
+        if 'hist_end_date' in st.session_state:
+            del st.session_state['hist_end_date']
+
+    def reset_custom_date_filter():
+        st.session_state.hist_date_pills = "🌐 ทั้งหมด (All Time)"
+        if 'hist_start_date' in st.session_state:
+            del st.session_state['hist_start_date']
+        if 'hist_end_date' in st.session_state:
+            del st.session_state['hist_end_date']
+
+    # แถวที่ 1: ช่องค้นหา, ปุ่มรีเซ็ต และปุ่ม Export
     c_hsearch, c_hreset, c_hexport_all = st.columns([1.7, 0.5, 0.8])
     with c_hsearch:
         search_hist = st.text_input("ค้นหาประวัติ", placeholder="🔍 พิมพ์รหัสงาน (Job ID), ชื่อช่าง, หรือหมายเหตุ...", label_visibility="collapsed", key="hist_search_input")
     with c_hreset:
-        if st.button("🔄 ล้างค่า (Reset)", use_container_width=True, key="btn_reset_filters", help="ล้างคำค้นหาและรีเซ็ตช่วงเวลาทั้งหมด"):
-            st.session_state.hist_search_input = ""
-            st.session_state.hist_date_pills = "🌐 ทั้งหมด (All Time)"
-            st.rerun()
+        st.button("🔄 ล้างค่า (Reset)", on_click=reset_all_filters, use_container_width=True, key="btn_reset_filters", help="ล้างคำค้นหาและรีเซ็ตช่วงเวลาทั้งหมด")
 
-    # แถบปุ่มกดเลือกช่วงเวลาแบบ Pills (ปุ่มกดเลือกได้ทันที ไม่มีช่องพิมพ์ข้อความ)
+    # แถวที่ 2: กรองตามสถานะงาน (แยกแถวชัดเจน ไม่เบียดกัน)
+    st.markdown("<p style='font-size: 0.84rem; font-weight: 700; color: #334155; margin: 6px 0 2px 0;'>📌 กรองสถานะงาน:</p>", unsafe_allow_html=True)
+    pref_status = st.session_state.get('hist_status_filter', '🌐 งานทั้งหมด')
+    if "ยังไม่ครบ" in pref_status:
+        default_status = f"⚠️ เฉพาะงานที่ยังไม่ครบ ({incomplete_count})"
+    elif "ครบถ้วน" in pref_status:
+        default_status = f"✅ เฉพาะงานที่ครบถ้วน ({complete_count})"
+    else:
+        default_status = f"🌐 งานทั้งหมด ({total_jobs})"
+
+    status_preset = st.pills(
+        "กรองสถานะงาน:",
+        options=[
+            f"🌐 งานทั้งหมด ({total_jobs})",
+            f"⚠️ เฉพาะงานที่ยังไม่ครบ ({incomplete_count})",
+            f"✅ เฉพาะงานที่ครบถ้วน ({complete_count})"
+        ],
+        default=default_status,
+        selection_mode="single",
+        key="hist_status_pills",
+        label_visibility="collapsed"
+    ) or default_status
+
+    # แถวที่ 3: กรองตามช่วงเวลา (แยกแถวชัดเจน)
+    st.markdown("<p style='font-size: 0.84rem; font-weight: 700; color: #334155; margin: 6px 0 2px 0;'>📅 ช่วงเวลาที่ต้องการดู:</p>", unsafe_allow_html=True)
     date_preset = st.pills(
         "ช่วงเวลาที่ต้องการดู:",
         options=[
@@ -1092,13 +1467,13 @@ def render_history():
     custom_start_date = None
     custom_end_date = None
 
-    if date_preset == "🕒 1 เดือน (30 วัน)":
+    if date_preset in ["🕒 1 เดือน (30 วัน)", "🕒 1 เดือน"]:
         cutoff_date = now - timedelta(days=30)
-    elif date_preset == "🕒 3 เดือน (90 วัน)":
+    elif date_preset in ["🕒 3 เดือน (90 วัน)", "🕒 3 เดือน"]:
         cutoff_date = now - timedelta(days=90)
-    elif date_preset == "🕒 6 เดือน (180 วัน)":
+    elif date_preset in ["🕒 6 เดือน (180 วัน)", "🕒 6 เดือน"]:
         cutoff_date = now - timedelta(days=180)
-    elif date_preset == "🕒 1 ปี (365 วัน)":
+    elif date_preset in ["🕒 1 ปี (365 วัน)", "🕒 1 ปี"]:
         cutoff_date = now - timedelta(days=365)
     elif date_preset == "📅 กำหนดช่วงวันที่เอง":
         c_d1, c_d2, c_d3 = st.columns([1.2, 1.2, 0.8])
@@ -1135,23 +1510,27 @@ def render_history():
             )
         with c_d3:
             st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
-            if st.button("🔄 เคลียร์ช่วงวันที่", use_container_width=True, key="btn_reset_custom_date"):
-                st.session_state.hist_date_pills = "🌐 ทั้งหมด (All Time)"
-                st.rerun()
+            st.button("🔄 เคลียร์ช่วงวันที่", on_click=reset_custom_date_filter, use_container_width=True, key="btn_reset_custom_date")
 
-    # กรองประวัติที่ตรงกับวันที่และคำค้นหา
+    # กรองประวัติที่ตรงกับวันที่, คำค้นหา และสถานะงาน
     filtered_history = []
     for idx, rec in enumerate(history):
         rec_dt = parse_record_date(rec)
 
-        # 1. กรองตามวันที่
+        # 1. กรองตามสถานะงาน (ครบ / ยังไม่ครบ)
+        if "ยังไม่ครบ" in status_preset and rec.get('is_complete', False):
+            continue
+        if "ครบถ้วน" in status_preset and not rec.get('is_complete', False):
+            continue
+
+        # 2. กรองตามวันที่
         if cutoff_date and rec_dt < cutoff_date:
             continue
         if custom_start_date and custom_end_date:
             if not (custom_start_date <= rec_dt.date() <= custom_end_date):
                 continue
 
-        # 2. กรองตามคำค้นหา
+        # 3. กรองตามคำค้นหา
         if search_hist:
             kw = search_hist.lower()
             match = (kw in rec['job_id'].lower() or 
@@ -1227,25 +1606,33 @@ def render_history():
                 swriter.writerow([])
                 swriter.writerow(["No.", "Tool Name", "Category", "Match Score", "Checked"])
                 for i_idx, itm in enumerate(rec.get('items', []), 1):
-                    swriter.writerow([i_idx, itm.get('name'), itm.get('category'), itm.get('score'), "Yes" if itm.get('checked') else "No"])
+                    swriter.writerow([i_idx, itm.get('name'), itm.get('category'), itm.get('score'), "Yes (Resolved)" if itm.get('resolved_at') else ("Yes" if itm.get('checked') else "No")])
                 
-                st.download_button(
-                    label="📄 ดาวน์โหลดใบส่งมอบ",
-                    data=single_csv.getvalue().encode('utf-8-sig'),
-                    file_name=f"Handover_{rec['job_id']}.csv",
-                    mime="text/csv",
-                    key=f"dl_hist_{idx}",
-                    use_container_width=True
-                )
+                c_act_b1, c_act_b2 = st.columns(2)
+                with c_act_b1:
+                    st.download_button(
+                        label="📄 CSV",
+                        data=single_csv.getvalue().encode('utf-8-sig'),
+                        file_name=f"Handover_{rec['job_id']}.csv",
+                        mime="text/csv",
+                        key=f"dl_hist_{idx}",
+                        use_container_width=True,
+                        help="ดาวน์โหลดไฟล์ข้อมูล CSV"
+                    )
+                with c_act_b2:
+                    if st.button("🖨️ พิมพ์", key=f"btn_print_job_{idx}", use_container_width=True, help="สั่งพิมพ์เอกสาร A4 / บันทึกเป็น PDF"):
+                        st.session_state['active_print_job'] = rec
+                        st.rerun()
 
             # แสดงรายการเครื่องมือในงานนี้ พร้อมรูปภาพประกอบ
             with st.expander("🔍 ดูรายการเครื่องมือทั้งหมดในงานนี้ (พร้อมรูปภาพ)"):
-                for itm in rec.get('items', []):
+                for itm_idx, itm in enumerate(rec.get('items', [])):
                     is_item_checked = itm.get('checked', False)
                     chk_icon = "✅" if is_item_checked else "❌"
                     fn = itm.get('filename', '')
+                    resolved_at = itm.get('resolved_at')
                     
-                    c_hchk, c_hthumb, c_htext, c_hscore = st.columns([0.06, 0.12, 0.64, 0.18])
+                    c_hchk, c_hthumb, c_htext, c_hscore, c_hbtn = st.columns([0.05, 0.10, 0.50, 0.15, 0.20])
                     with c_hchk:
                         st.markdown(f"<div style='font-size: 1.1rem; padding-top: 6px;'>{chk_icon}</div>", unsafe_allow_html=True)
                     with c_hthumb:
@@ -1257,9 +1644,10 @@ def render_history():
                         else:
                             st.write("🔧")
                     with c_htext:
+                        resolved_badge = f'<span style="background-color: #ECFDF5; color: #059669; border: 1px solid #A7F3D0; font-size: 0.70rem; font-weight: 600; padding: 1px 6px; border-radius: 4px; margin-left: 6px;">✨ พบย้อนหลังเมื่อ {resolved_at}</span>' if resolved_at else ''
                         st.markdown(f"""
-                        <div style="font-size: 0.92rem; font-weight: 700; color: #0F172A;">
-                            {itm.get('name', fn)}
+                        <div style="font-size: 0.92rem; font-weight: 700; color: #0F172A; display: flex; align-items: center; flex-wrap: wrap;">
+                            {itm.get('name', fn)} {resolved_badge}
                         </div>
                         <div style="display: flex; align-items: center; gap: 6px; margin-top: 2px;">
                             <span class='badge-category' style="font-size: 0.7rem;">{itm.get('category', 'General')}</span>
@@ -1272,7 +1660,68 @@ def render_history():
                             <span class='badge-score'>★ {itm.get('score', 100)}</span>
                         </div>
                         """, unsafe_allow_html=True)
+                    with c_hbtn:
+                        if not is_item_checked:
+                            st.button(
+                                "✅ บันทึกว่าพบแล้ว",
+                                key=f"btn_mark_found_{rec['job_id']}_{itm_idx}",
+                                on_click=mark_tool_as_found,
+                                args=(rec['job_id'], itm_idx),
+                                use_container_width=True,
+                                help="กดเมื่อตามหาเครื่องมือชิ้นนี้เจอแล้ว เพื่ออัปเดตประวัติย้อนหลัง"
+                            )
+                        else:
+                            if resolved_at:
+                                st.markdown("<div style='text-align: center; color: #059669; font-size: 0.78rem; font-weight: 600; padding-top: 8px;'>✨ พบย้อนหลังแล้ว</div>", unsafe_allow_html=True)
+                            else:
+                                st.markdown("<div style='text-align: center; color: #64748B; font-size: 0.78rem; padding-top: 8px;'>ตรวจพบปกติ</div>", unsafe_allow_html=True)
                     st.divider()
+
+    # รัน Print Dialog ผ่าน hidden iframe เพียง 1 ตัว เมื่อผู้ใช้กดปุ่มพิมพ์เท่านั้น (ป้องกันเว็บค้างและเร็วทันใจ)
+    if 'active_print_job' in st.session_state and st.session_state['active_print_job']:
+        print_rec = st.session_state['active_print_job']
+        del st.session_state['active_print_job']
+        full_printable_html = generate_printable_html(print_rec)
+        b64_html = base64.b64encode(full_printable_html.encode('utf-8')).decode('ascii')
+        
+        components.html(f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+        <meta charset="utf-8">
+        <style>body {{ margin: 0; padding: 0; overflow: hidden; background: transparent; }}</style>
+        </head>
+        <body>
+        <script>
+        (function() {{
+            try {{
+                var rawHtml = decodeURIComponent(escape(window.atob("{b64_html}")));
+                var iframe = document.createElement('iframe');
+                iframe.style.position = 'fixed';
+                iframe.style.top = '-9999px';
+                iframe.style.left = '-9999px';
+                iframe.style.width = '0px';
+                iframe.style.height = '0px';
+                iframe.style.border = '0';
+                document.body.appendChild(iframe);
+                
+                var doc = iframe.contentWindow.document;
+                doc.open();
+                doc.write(rawHtml);
+                doc.close();
+                
+                iframe.contentWindow.focus();
+                setTimeout(function() {{
+                    iframe.contentWindow.print();
+                }}, 250);
+            }} catch(e) {{
+                console.error(e);
+            }}
+        }})();
+        </script>
+        </body>
+        </html>
+        """, height=0)
 
 
 # ==============================================================================
@@ -1461,7 +1910,136 @@ def render_tray_check():
                         st.session_state.active_view = "checklist"
                         st.rerun()
             else:
-                st.info("👈 กรุณาเลือกถาดและถ่ายภาพ/เลือกไฟล์ภาพทางซ้าย เพื่อดูจุดสแกนและเริ่มตรวจสอบ")
+                tray_tmpl = scanner.get_tray_template(selected_id)
+                if tray_tmpl:
+                    t_name = tray_tmpl.get('tray_name', selected_label)
+                    slots = tray_tmpl.get('slots', [])
+                    img_path = tray_tmpl.get('image_path')
+
+                    st.markdown(f"""
+                    <div style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                            <div>
+                                <span style="font-size: 0.76rem; font-weight: 700; color: #E81D23; text-transform: uppercase;">แม่แบบถาดมาตรฐาน (Master Template)</span>
+                                <h4 style="margin: 2px 0 0 0; color: #0F172A; font-size: 1.05rem;">📥 {t_name}</h4>
+                            </div>
+                            <span style="background-color: #EFF6FF; color: #1D4ED8; border: 1px solid #BFDBFE; font-size: 0.76rem; font-weight: 700; padding: 3px 10px; border-radius: 20px;">
+                                {len(slots)} ช่องเครื่องมือ
+                            </span>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                    if img_path and os.path.exists(img_path):
+                        st.image(img_path, caption=f"🖼️ ภาพถ่ายแม่แบบถาด '{t_name}' ที่ลงทะเบียนไว้", use_container_width=True)
+
+                    st.markdown(f"<p style='font-size: 0.86rem; font-weight: 700; color: #334155; margin: 10px 0 6px 0;'>🔧 รายการเครื่องมือมาตรฐานในถาดนี้ ({len(slots)} ชิ้น):</p>", unsafe_allow_html=True)
+
+                    # แสดงรายการเครื่องมือมาตรฐานในถาดพร้อมภาพ Thumbnail
+                    for s_idx, slot in enumerate(slots):
+                        s_fn = slot.get('filename', '')
+                        c_s1, c_s2, c_s3 = st.columns([0.15, 0.65, 0.20])
+                        with c_s1:
+                            if s_fn and os.path.exists(f"mock_database/{s_fn}"):
+                                try:
+                                    st.image(f"mock_database/{s_fn}", width=44)
+                                except:
+                                    st.write("🔧")
+                            else:
+                                st.write("🔧")
+                        with c_s2:
+                            st.markdown(f"""
+                            <div style="font-size: 0.86rem; font-weight: 700; color: #0F172A;">{slot.get('name', s_fn)}</div>
+                            <div style="font-size: 0.74rem; color: #64748B;"><span class='badge-category' style='font-size: 0.66rem;'>{slot.get('category', 'General')}</span> {slot.get('description', '')}</div>
+                            """, unsafe_allow_html=True)
+                        with c_s3:
+                            st.markdown(f"<div style='text-align: right; font-size: 0.75rem; color: #059669; font-weight: 600; padding-top: 6px;'>ช่อง #{s_idx + 1}</div>", unsafe_allow_html=True)
+                        st.markdown("<div style='border-bottom: 1px dashed #E2E8F0; margin: 4px 0;'></div>", unsafe_allow_html=True)
+
+                    st.markdown("""
+                    <div style="background-color: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 6px; padding: 10px 12px; margin-top: 12px; font-size: 0.82rem; color: #1E40AF; text-align: center;">
+                        👈 <b>พร้อมตรวจเช็ค:</b> กรุณาเปิดกล้องหรืออัปโหลดภาพถาดปัจจุบันทางซ้าย เพื่อเริ่มการสแกนเปรียบเทียบ
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.info("👈 กรุณาเลือกถาดและถ่ายภาพ/เลือกไฟล์ภาพทางซ้าย เพื่อดูจุดสแกนและเริ่มตรวจสอบ")
+
+
+def render_tray_manager():
+    templates = scanner.list_tray_templates()
+    st.markdown("""
+    <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-left: 4px solid #E81D23; border-radius: 8px; padding: 12px; margin-bottom: 14px;">
+        <p style="margin: 0; color: #0F172A; font-size: 0.9rem; font-weight: 700;">🗂️ จัดการแม่แบบถาดเครื่องมือ (Tray Template Manager):</p>
+        <p style="margin: 4px 0 0 0; color: #64748B; font-size: 0.84rem;">
+            ตรวจสอบและลบแม่แบบถาดที่ไม่ใช้งานแล้วออกจากระบบ เพื่อความเป็นระเบียบเรียบร้อยของฐานข้อมูล
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if 'tray_deleted_msg' in st.session_state and st.session_state.tray_deleted_msg:
+        st.success(f"🗑️ {st.session_state.tray_deleted_msg}")
+        del st.session_state['tray_deleted_msg']
+
+    if not templates:
+        st.info("💡 ยังไม่มี Template ถาดในระบบ สามารถสร้างใหม่ได้ที่แท็บ '📝 ลงทะเบียนถาดใหม่'")
+        return
+
+    st.caption(f"พบแม่แบบถาดทั้งหมด **{len(templates)} รายการ** ในระบบ:")
+
+    def delete_template_callback(tray_id, tray_name):
+        scanner.delete_tray_template(tray_id)
+        st.session_state['tray_deleted_msg'] = f"ลบแม่แบบถาด '{tray_name}' ออกจากระบบเรียบร้อยแล้ว"
+
+    for tmpl in templates:
+        tid = tmpl['tray_id']
+        tname = tmpl['tray_name']
+        scount = tmpl['slot_count']
+        reg_at = tmpl.get('registered_at', '-')
+        
+        full_tmpl = scanner.get_tray_template(tid) or {}
+        img_path = full_tmpl.get('image_path')
+        slots = full_tmpl.get('slots', [])
+
+        with st.container(border=True):
+            col_t1, col_t2, col_t3 = st.columns([1.5, 1.2, 0.7])
+            with col_t1:
+                st.markdown(f"""
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <strong style="font-size: 1.05rem; color: #0F172A;">📥 {tname}</strong>
+                    <span style="background-color: #EFF6FF; color: #1D4ED8; border: 1px solid #BFDBFE; font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 6px;">{scount} ช่อง</span>
+                </div>
+                <div style="font-size: 0.82rem; color: #64748B; margin-top: 4px;">
+                    รหัสระบบ: <code>{tid}</code> | ลงทะเบียนเมื่อ: <b>{reg_at}</b>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                if slots:
+                    tool_names = [s.get('name', '') for s in slots[:4]]
+                    tool_preview_str = ", ".join(tool_names)
+                    if len(slots) > 4:
+                        tool_preview_str += f" และอีก {len(slots)-4} ชิ้น"
+                    st.caption(f"🔧 เครื่องมือ: {tool_preview_str}")
+
+            with col_t2:
+                if img_path and os.path.exists(img_path):
+                    try:
+                        st.image(img_path, width=160, caption="ภาพแม่แบบ")
+                    except:
+                        st.write("🖼️ ภาพแม่แบบ")
+                else:
+                    st.markdown("<div style='color: #94A3B8; font-size: 0.8rem; padding-top: 10px;'>ไม่มีไฟล์ภาพถ่ายแม่แบบ</div>", unsafe_allow_html=True)
+
+            with col_t3:
+                st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
+                st.button(
+                    "🗑️ ลบถาดนี้",
+                    key=f"btn_del_tray_{tid}",
+                    on_click=delete_template_callback,
+                    args=(tid, tname),
+                    type="secondary",
+                    use_container_width=True,
+                    help="ลบ Template ถาดนี้ออกจากฐานข้อมูลอย่างถาวร"
+                )
 
 
 def render_tray():
@@ -1472,11 +2050,13 @@ def render_tray():
     </div>
     """, unsafe_allow_html=True)
 
-    tab_reg, tab_check = st.tabs(["📝 ลงทะเบียนถาดใหม่", "🔍 ตรวจสอบถาดปัจจุบัน"])
+    tab_reg, tab_check, tab_manage = st.tabs(["📝 ลงทะเบียนถาดใหม่", "🔍 ตรวจสอบถาดปัจจุบัน", "🗂️ จัดการ Template ถาด"])
     with tab_reg:
         render_tray_register()
     with tab_check:
         render_tray_check()
+    with tab_manage:
+        render_tray_manager()
 
 
 # ==============================================================================
